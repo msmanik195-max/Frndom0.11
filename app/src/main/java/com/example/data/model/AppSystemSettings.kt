@@ -37,6 +37,9 @@ data class AppSystemSettings(
     val defaultPageDailyLimitStory: Int = 20,
     val defaultPageDailyLimitLink: Int = 20,
 
+    // 6. Leaderboard Total Display Count (Default 20)
+    val leaderboardLimit: Int = 20,
+
     val updatedAt: Long = System.currentTimeMillis()
 ) {
     fun toMap(): Map<String, Any> = mapOf(
@@ -63,6 +66,7 @@ data class AppSystemSettings(
         "defaultPageDailyLimitVideo" to defaultPageDailyLimitVideo,
         "defaultPageDailyLimitStory" to defaultPageDailyLimitStory,
         "defaultPageDailyLimitLink" to defaultPageDailyLimitLink,
+        "leaderboardLimit" to leaderboardLimit,
         "updatedAt" to updatedAt
     )
 }

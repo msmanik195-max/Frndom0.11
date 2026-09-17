@@ -218,7 +218,7 @@ fun NotificationsScreen(
 
                         if (isAdminAnnouncement) {
                             // Large, beautiful Announcement Card sent from Admin Panel
-                            // No user profile, no ID, directly displays "Frndom টিম", not clickable to navigate away
+                            // No user profile, no ID, directly displays "Frndom Team", not clickable to navigate away
                             AdminAnnouncementCard(
                                 notification = item,
                                 isDarkMode = isDarkMode
@@ -247,7 +247,7 @@ fun NotificationsScreen(
 
 /**
  * Large, beautiful card for notifications sent from the Admin Panel.
- * Directly identifies as "Frndom টিম" with verified badge.
+ * Directly identifies as "Frndom Team" with verified badge.
  * Displays title, description, and media image.
  * No user avatar, no user ID, and clicking will not navigate away.
  */
@@ -277,7 +277,7 @@ private fun AdminAnnouncementCard(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            // Header: "Frndom টিম" official badge + Time ago
+            // Header: "Frndom Team" official badge + Time ago
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -299,7 +299,7 @@ private fun AdminAnnouncementCard(
                         )
                         Spacer(modifier = Modifier.width(5.dp))
                         Text(
-                            text = "Frndom টিম",
+                            text = "Frndom Team",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF1877F2)
@@ -537,18 +537,5 @@ private fun NotificationRowItem(
 }
 
 private fun formatTimeAgo(timestamp: Long): String {
-    val diff = System.currentTimeMillis() - timestamp
-    if (diff < 0) return "Just now"
-    val seconds = diff / 1000
-    val minutes = seconds / 60
-    val hours = minutes / 60
-    val days = hours / 24
-
-    return when {
-        seconds < 60 -> "Just now"
-        minutes < 60 -> "${minutes}m ago"
-        hours < 24 -> "${hours}h ago"
-        days < 7 -> "${days}d ago"
-        else -> "${days / 7}w ago"
-    }
+    return com.example.util.formatPostTimestamp(timestamp)
 }

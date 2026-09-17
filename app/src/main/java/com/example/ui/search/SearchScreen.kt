@@ -75,10 +75,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.data.model.AdminSuggestedItem
 import com.example.data.model.GroupItem
 import com.example.data.model.PageItem
 import com.example.data.model.PostItem
+import com.example.data.model.SuggestedItemType
 import com.example.data.model.UserProfile
+import com.example.data.repository.AdminRequestRepository
 import com.example.data.repository.GroupPageRepository
 import com.example.data.repository.PostRepository
 import com.example.data.repository.SearchHistoryRepository
@@ -86,6 +89,8 @@ import com.example.data.repository.UserRepository
 import com.example.ui.components.VerificationBadge
 import com.example.ui.home.PostCardItem
 import com.example.ui.theme.LocalIsDarkMode
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Star
 
 @Composable
 fun SearchScreen(
@@ -153,6 +158,8 @@ fun SearchScreen(
     val allPages by groupPageRepository.pagesFlow.collectAsState()
     val allGroups by groupPageRepository.groupsFlow.collectAsState()
     val recentSearches by searchHistoryRepository.recentSearchesFlow.collectAsState()
+    val adminRepo = remember { AdminRequestRepository.getInstance(context) }
+    val adminSuggestedItems by adminRepo.suggestedItemsFlow.collectAsState()
 
     // Joined groups and followed pages local states
     val followedPages = remember { mutableStateMapOf<String, Boolean>() }
@@ -371,8 +378,8 @@ fun SearchScreen(
                         }
                     }
 
-                    // Ranked Pages (Top Trending Pages)
-                    if (allPages.isNotEmpty()) {
+                    // Admin-Managed Suggested Items (Only items explicitly added by Admin)
+                    if (adminSuggestedItems.isNotEmpty()) {
                         item {
                             Row(
                                 modifier = Modifier
@@ -381,14 +388,14 @@ fun SearchScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.TrendingUp,
+                                    imageVector = Icons.Default.Star,
                                     contentDescription = null,
                                     tint = Color(0xFF1877F2),
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Top Ranked Pages",
+                                    text = "Suggested for you",
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = textPrimary
@@ -396,12 +403,45 @@ fun SearchScreen(
                             }
                         }
 
-                        items(allPages.take(4), key = { "ranked_page_${it.id}" }) { page ->
-                            PageSearchRow(
-                                page = page,
-                                isFollowed = followedPages[page.id] == true,
-                                onToggleFollow = { followedPages[page.id] = !(followedPages[page.id] ?: false) },
-                                onClick = { selectedPage = page }
+                        items(adminSuggestedItems, key = { "admin_sug_${it.id}" }) { item ->
+                            AdminSuggestedSearchItemRow(
+                                item = item,
+                                textPrimary = textPrimary,
+                                textSecondary = textSecondary,
+                                onClick = {
+                                    when (item.type) {
+                                        SuggestedItemType.PROFILE -> {
+                                            val targetUser = allUsers.find { it.uid == item.targetId }
+                                                ?: UserProfile(
+                                                    uid = item.targetId.ifBlank { item.id },
+                                                    fullName = item.title,
+                                                    profilePictureUrl = item.imageUrl
+                                                )
+                                            onUserClick(targetUser)
+                                        }
+                                        SuggestedItemType.PAGE -> {
+                                            val targetPage = allPages.find { it.id == item.targetId }
+                                                ?: PageItem(
+                                                    id = item.targetId.ifBlank { item.id },
+                                                    name = item.title,
+                                                    description = item.subtitle,
+                                                    avatarUrl = item.imageUrl,
+                                                    isVerified = item.isVerified
+                                                )
+                                            selectedPage = targetPage
+                                        }
+                                        SuggestedItemType.GROUP -> {
+                                            val targetGroup = allGroups.find { it.id == item.targetId }
+                                                ?: GroupItem(
+                                                    id = item.targetId.ifBlank { item.id },
+                                                    name = item.title,
+                                                    description = item.subtitle,
+                                                    coverUrl = item.imageUrl
+                                                )
+                                            selectedGroup = targetGroup
+                                        }
+                                    }
+                                }
                             )
                         }
 
@@ -414,42 +454,7 @@ fun SearchScreen(
                         }
                     }
 
-                    // Ranked Groups (Top Ranked Communities)
-                    if (allGroups.isNotEmpty()) {
-                        item {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Group,
-                                    contentDescription = null,
-                                    tint = Color(0xFF2E7D32),
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Ranked Groups & Communities",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = textPrimary
-                                )
-                            }
-                        }
-
-                        items(allGroups.take(4), key = { "ranked_group_${it.id}" }) { group ->
-                            GroupSearchRow(
-                                group = group,
-                                isJoined = joinedGroups[group.id] == true,
-                                onToggleJoin = { joinedGroups[group.id] = !(joinedGroups[group.id] ?: false) },
-                                onClick = { selectedGroup = group }
-                            )
-                        }
-                    }
-
-                    if (recentSearches.isEmpty() && allPages.isEmpty() && allGroups.isEmpty()) {
+                    if (recentSearches.isEmpty() && adminSuggestedItems.isEmpty()) {
                         item {
                             Column(
                                 modifier = Modifier
@@ -1190,6 +1195,106 @@ private fun EmptySearchResults(query: String) {
                 fontSize = 13.sp,
                 color = if (isDarkMode) Color(0xFFB0B3B8) else Color(0xFF65676B),
                 lineHeight = 18.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun AdminSuggestedSearchItemRow(
+    item: AdminSuggestedItem,
+    textPrimary: Color,
+    textSecondary: Color,
+    onClick: () -> Unit
+) {
+    val typeIcon = when (item.type) {
+        SuggestedItemType.PROFILE -> Icons.Default.Person
+        SuggestedItemType.PAGE -> Icons.Default.Flag
+        SuggestedItemType.GROUP -> Icons.Default.Group
+    }
+    val typeColor = when (item.type) {
+        SuggestedItemType.PROFILE -> Color(0xFF1877F2)
+        SuggestedItemType.PAGE -> Color(0xFFE91E63)
+        SuggestedItemType.GROUP -> Color(0xFF2E7D32)
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(if (item.type == SuggestedItemType.GROUP) RoundedCornerShape(10.dp) else CircleShape)
+                .background(typeColor.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (item.imageUrl.isNotBlank()) {
+                AsyncImage(
+                    model = item.imageUrl,
+                    contentDescription = item.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Icon(
+                    imageVector = typeIcon,
+                    contentDescription = null,
+                    tint = typeColor,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = item.title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (item.isVerified) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    VerificationBadge(modifier = Modifier.size(14.dp))
+                }
+            }
+
+            if (item.subtitle.isNotBlank()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = item.subtitle,
+                    fontSize = 13.sp,
+                    color = textSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = typeColor.copy(alpha = 0.12f)
+        ) {
+            Text(
+                text = when (item.type) {
+                    SuggestedItemType.PROFILE -> "Profile"
+                    SuggestedItemType.PAGE -> "Page"
+                    SuggestedItemType.GROUP -> "Group"
+                },
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = typeColor,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
             )
         }
     }

@@ -518,7 +518,7 @@ fun AddEditPackageDialog(
     var tag by remember { mutableStateOf(existingPlan?.tag ?: "") }
     var description by remember { mutableStateOf(existingPlan?.description ?: "") }
 
-    val currencyOptions = listOf("BDT", "$", "৳", "₹", "€", "£")
+    val currencyOptions = listOf("BDT", "$", "TK", "₹", "€", "£")
 
     AlertDialog(
         onDismissRequest = onDismiss,

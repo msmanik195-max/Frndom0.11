@@ -253,7 +253,7 @@ fun PostOptionsBottomSheet(
             post = post,
             onDismiss = { showReportDialog = false },
             onSubmitReport = { reason ->
-                postRepository.reportPost(post.id, currentUserId, reason)
+                postRepository.reportPost(post, currentUserId, "", reason)
                 showReportDialog = false
                 Toast.makeText(context, "Thank you for reporting. We will review this post.", Toast.LENGTH_LONG).show()
                 onDismiss()

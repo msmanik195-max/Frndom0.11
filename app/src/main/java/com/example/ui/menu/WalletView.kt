@@ -102,6 +102,7 @@ fun WalletView(
     var showHistorySheet by remember { mutableStateOf(false) }
 
     val isDarkMode = LocalIsDarkMode.current
+    val bgScreen = if (isDarkMode) Color(0xFF18191A) else Color(0xFFF0F2F5)
     val cardBg = if (isDarkMode) Color(0xFF242526) else Color.White
     val textPrimary = if (isDarkMode) Color(0xFFE4E6EB) else Color(0xFF050505)
     val textSecondary = if (isDarkMode) Color(0xFFB0B3B8) else Color(0xFF65676B)
@@ -133,14 +134,14 @@ fun WalletView(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFFF0F2F5))
+            .background(bgScreen)
             .testTag("wallet_view")
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Top Bar
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = Color.White,
+                color = cardBg,
                 shadowElevation = 0.5.dp
             ) {
                 Row(
@@ -157,7 +158,7 @@ fun WalletView(
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
                             contentDescription = "Back",
-                            tint = Color(0xFF050505)
+                            tint = textPrimary
                         )
                     }
 
@@ -165,7 +166,7 @@ fun WalletView(
                         text = "Wallet",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF050505)
+                        color = textPrimary
                     )
 
                     IconButton(
@@ -175,7 +176,7 @@ fun WalletView(
                         Icon(
                             imageVector = Icons.Default.History,
                             contentDescription = "History",
-                            tint = Color(0xFF050505)
+                            tint = textPrimary
                         )
                     }
                 }

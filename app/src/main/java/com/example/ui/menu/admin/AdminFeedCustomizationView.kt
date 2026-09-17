@@ -187,7 +187,15 @@ fun AdminFeedCustomizationView(
                             Spacer(modifier = Modifier.width(8.dp))
                             Switch(
                                 checked = friendsOnly,
-                                onCheckedChange = { friendsOnly = it },
+                                onCheckedChange = {
+                                    friendsOnly = it
+                                    val config = HomeFeedConfig(
+                                        onlyFriendsPosts = it,
+                                        sections = sectionsList.toList(),
+                                        updatedAt = System.currentTimeMillis()
+                                    )
+                                    adminRepo.updateHomeFeedConfig(config)
+                                },
                                 colors = SwitchDefaults.colors(
                                     checkedThumbColor = Color.White,
                                     checkedTrackColor = Color(0xFF1877F2)
@@ -281,6 +289,12 @@ fun AdminFeedCustomizationView(
                             val item = updated.removeAt(index)
                             updated.add(index - 1, item)
                             sectionsList = updated
+                            val config = HomeFeedConfig(
+                                onlyFriendsPosts = friendsOnly,
+                                sections = updated.toList(),
+                                updatedAt = System.currentTimeMillis()
+                            )
+                            adminRepo.updateHomeFeedConfig(config)
                         }
                     },
                     onMoveDown = {
@@ -289,17 +303,35 @@ fun AdminFeedCustomizationView(
                             val item = updated.removeAt(index)
                             updated.add(index + 1, item)
                             sectionsList = updated
+                            val config = HomeFeedConfig(
+                                onlyFriendsPosts = friendsOnly,
+                                sections = updated.toList(),
+                                updatedAt = System.currentTimeMillis()
+                            )
+                            adminRepo.updateHomeFeedConfig(config)
                         }
                     },
                     onToggleEnabled = { enabled ->
                         val updated = sectionsList.toMutableList()
                         updated[index] = section.copy(enabled = enabled)
                         sectionsList = updated
+                        val config = HomeFeedConfig(
+                            onlyFriendsPosts = friendsOnly,
+                            sections = updated.toList(),
+                            updatedAt = System.currentTimeMillis()
+                        )
+                        adminRepo.updateHomeFeedConfig(config)
                     },
                     onRangeChange = { min, max ->
                         val updated = sectionsList.toMutableList()
                         updated[index] = section.copy(minCount = min, maxCount = max)
                         sectionsList = updated
+                        val config = HomeFeedConfig(
+                            onlyFriendsPosts = friendsOnly,
+                            sections = updated.toList(),
+                            updatedAt = System.currentTimeMillis()
+                        )
+                        adminRepo.updateHomeFeedConfig(config)
                     },
                     onDuplicate = {
                         val newSec = section.copy(
@@ -308,11 +340,23 @@ fun AdminFeedCustomizationView(
                         val updated = sectionsList.toMutableList()
                         updated.add(index + 1, newSec)
                         sectionsList = updated
+                        val config = HomeFeedConfig(
+                            onlyFriendsPosts = friendsOnly,
+                            sections = updated.toList(),
+                            updatedAt = System.currentTimeMillis()
+                        )
+                        adminRepo.updateHomeFeedConfig(config)
                     },
                     onDelete = {
                         val updated = sectionsList.toMutableList()
                         updated.removeAt(index)
                         sectionsList = updated
+                        val config = HomeFeedConfig(
+                            onlyFriendsPosts = friendsOnly,
+                            sections = updated.toList(),
+                            updatedAt = System.currentTimeMillis()
+                        )
+                        adminRepo.updateHomeFeedConfig(config)
                     }
                 )
             }

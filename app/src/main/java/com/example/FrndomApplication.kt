@@ -20,10 +20,10 @@ class FrndomApplication : Application() {
 
                 // If still not initialized, manually build FirebaseOptions from google-services.json credentials
                 if (FirebaseApp.getApps(this).isEmpty()) {
-                    val apiKey = BuildConfig.FIREBASE_API_KEY.ifBlank { "AIzaSyDIyVBiQKM9sFaOie1Mabvx6uWIq_5G2g4" }
-                    val appId = BuildConfig.FIREBASE_APP_ID.ifBlank { "1:811952393925:android:4755f7334040c07c702aac" }
-                    val projectId = BuildConfig.FIREBASE_PROJECT_ID.ifBlank { "frndom-871ec" }
-                    val databaseUrl = BuildConfig.FIREBASE_DATABASE_URL.ifBlank { "https://frndom-871ec-default-rtdb.firebaseio.com" }
+                    val apiKey = BuildConfig.FIREBASE_API_KEY.takeIf { it.isNotBlank() && it != "dummy" } ?: "AIzaSyDIyVBiQKM9sFaOie1Mabvx6uWIq_5G2g4"
+                    val appId = BuildConfig.FIREBASE_APP_ID.takeIf { it.isNotBlank() && it != "dummy" } ?: "1:811952393925:android:4755f7334040c07c702aac"
+                    val projectId = BuildConfig.FIREBASE_PROJECT_ID.takeIf { it.isNotBlank() && it != "dummy" } ?: "frndom-871ec"
+                    val databaseUrl = BuildConfig.FIREBASE_DATABASE_URL.takeIf { it.isNotBlank() && it != "dummy" } ?: "https://frndom-871ec-default-rtdb.firebaseio.com"
 
                     val options = FirebaseOptions.Builder()
                         .setApiKey(apiKey)

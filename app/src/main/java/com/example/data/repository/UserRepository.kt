@@ -33,7 +33,17 @@ class UserRepository(private val context: Context) {
 
         val allUsersMapState = MutableStateFlow<Map<String, UserProfile>>(emptyMap())
         val currentUserProfileFlow = MutableStateFlow<UserProfile?>(null)
-        val usersFlow: Flow<List<UserProfile>> = allUsersMapState.map { it.values.toList() }
+        val usersFlow: Flow<List<UserProfile>> = allUsersMapState.map { map ->
+            val deleted = deletedUidsSet.value
+            val list = mutableListOf<UserProfile>()
+            val seenUids = mutableSetOf<String>()
+            for (user in map.values) {
+                if (user.uid.isNotBlank() && !deleted.contains(user.uid) && seenUids.add(user.uid)) {
+                    list.add(user)
+                }
+            }
+            list
+        }.distinctUntilChanged()
         private val verifiedUsersMap = MutableStateFlow<Map<String, Triple<Long, String, String>>>(emptyMap())
         private val deletedUidsSet = MutableStateFlow<Set<String>>(emptySet())
         private var isListenersInitialized = false
@@ -66,7 +76,7 @@ class UserRepository(private val context: Context) {
         }
     }
 
-    val usersFlow: Flow<List<UserProfile>> get() = Companion.usersFlow
+    val usersFlow: Flow<List<UserProfile>> get() = getAllUsersFlow()
     val currentUserProfileFlow: Flow<UserProfile?> get() = Companion.currentUserProfileFlow
 
     private val dbRef: DatabaseReference? by lazy {
@@ -111,7 +121,12 @@ class UserRepository(private val context: Context) {
             val deleted = deletedUidsSet.value
             getSavedAccounts().forEach { user ->
                 if (user.uid.isNotBlank() && !deleted.contains(user.uid) && !deleted.contains(user.email.trim().lowercase()) && !deleted.contains(user.phoneNumber.trim())) {
-                    initialMap[user.uid] = user
+                    initialMap[user.uid] = enrichProfileWithVerification(user)
+                }
+            }
+            getAllCachedUsersInternal().forEach { user ->
+                if (user.uid.isNotBlank() && !deleted.contains(user.uid) && !deleted.contains(user.email.trim().lowercase()) && !deleted.contains(user.phoneNumber.trim()) && !initialMap.containsKey(user.uid)) {
+                    initialMap[user.uid] = enrichProfileWithVerification(user)
                 }
             }
             if (initialMap.isNotEmpty()) {
@@ -193,6 +208,22 @@ class UserRepository(private val context: Context) {
                 override fun onDataChange(snapshot: DataSnapshot) {
                     val newMap = LinkedHashMap<String, UserProfile>()
                     val deleted = deletedUidsSet.value
+
+                    // 1. First preserve all saved accounts and locally cached accounts
+                    for (saved in getSavedAccounts()) {
+                        if (saved.uid.isNotBlank() && !deleted.contains(saved.uid) && !deleted.contains(saved.email.trim().lowercase()) && !deleted.contains(saved.phoneNumber.trim())) {
+                            newMap[saved.uid] = enrichProfileWithVerification(saved)
+                        }
+                    }
+                    for (cached in getAllCachedUsersInternal()) {
+                        if (cached.uid.isNotBlank() && !deleted.contains(cached.uid) && !deleted.contains(cached.email.trim().lowercase()) && !deleted.contains(cached.phoneNumber.trim())) {
+                            if (!newMap.containsKey(cached.uid)) {
+                                newMap[cached.uid] = enrichProfileWithVerification(cached)
+                            }
+                        }
+                    }
+
+                    // 2. Add or update from Firebase Realtime Database
                     for (child in snapshot.children) {
                         try {
                             val user = child.getValue(UserProfile::class.java)
@@ -440,8 +471,33 @@ class UserRepository(private val context: Context) {
                 }
             }
 
+            // 3. Add any cached user_* profiles from SharedPreferences
+            for (cached in getAllCachedUsersInternal()) {
+                if (cached.uid.isNotBlank() && !deleted.contains(cached.uid) && !deleted.contains(cached.email.trim().lowercase()) && !deleted.contains(cached.phoneNumber.trim()) && seenUids.add(cached.uid)) {
+                    list.add(enrichProfileWithVerification(cached))
+                }
+            }
+
             list
         }.distinctUntilChanged()
+    }
+
+    fun getAllCachedUsersInternal(): List<UserProfile> {
+        val prefs = context.getSharedPreferences("frndom_user_cache", Context.MODE_PRIVATE)
+        val list = mutableListOf<UserProfile>()
+        try {
+            val allEntries = prefs.all
+            for ((key, value) in allEntries) {
+                if (key.startsWith("user_") && value is String) {
+                    val uid = key.removePrefix("user_")
+                    val profile = getLocalUserProfile(uid)
+                    if (profile != null && profile.uid.isNotBlank()) {
+                        list.add(profile)
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+        return list
     }
 
     fun getLocalUserProfile(uid: String): UserProfile? {

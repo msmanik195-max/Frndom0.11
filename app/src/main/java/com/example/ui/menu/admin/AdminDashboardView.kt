@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PostAdd
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.TrendingUp
@@ -62,6 +63,9 @@ import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Report
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
@@ -111,6 +115,7 @@ import com.example.data.repository.AdvertisementRepository
 import com.example.data.repository.ChatRepository
 import com.example.data.repository.GroupPageRepository
 import com.example.data.repository.PostRepository
+import com.example.data.repository.StoryRepository
 import com.example.data.repository.UserRepository
 import com.example.ui.maintenance.MaintenanceConfigDialog
 import com.example.ui.theme.LocalIsDarkMode
@@ -130,9 +135,12 @@ enum class AdminActiveScreen {
     VERIFICATION_PACKAGES,
     PAYMENT_METHODS,
     FEED_CUSTOMIZATION,
+    SUGGESTED_ITEMS,
     SETTINGS,
     AD_MANAGEMENT,
-    ADMIN_NOTIFICATIONS
+    ADMIN_NOTIFICATIONS,
+    REPORTED_POSTS,
+    FILE_MANAGER
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -145,11 +153,15 @@ fun AdminDashboardView(
     val context = LocalContext.current
     val userRepository = remember { UserRepository(context) }
     val postRepository = remember { PostRepository(context) }
+    val storyRepository = remember { StoryRepository(context) }
     val chatRepository = remember { ChatRepository(context) }
     val groupPageRepository = remember { GroupPageRepository(context) }
     val adminRepo = remember { AdminRequestRepository.getInstance(context) }
     val adRepo = remember { AdvertisementRepository.getInstance(context) }
     val scope = rememberCoroutineScope()
+
+    val reports by postRepository.reportsFlow.collectAsState()
+    val pendingReportsCount = remember(reports) { reports.count { it.status.equals("pending", ignoreCase = true) } }
 
     val isDarkMode = LocalIsDarkMode.current
     val bgScreen = if (isDarkMode) Color(0xFF18191A) else Color(0xFFF0F2F5)
@@ -306,6 +318,13 @@ fun AdminDashboardView(
                 modifier = modifier
             )
         }
+        AdminActiveScreen.SUGGESTED_ITEMS -> {
+            AdminSuggestedItemsView(
+                adminRepo = adminRepo,
+                onBack = { currentAdminScreen = AdminActiveScreen.DASHBOARD_MAIN },
+                modifier = modifier
+            )
+        }
         AdminActiveScreen.SETTINGS -> {
             AdminSettingsView(
                 adminRepo = adminRepo,
@@ -315,6 +334,21 @@ fun AdminDashboardView(
         }
         AdminActiveScreen.AD_MANAGEMENT -> {
             AdminAdvertisementManagementView(
+                onBack = { currentAdminScreen = AdminActiveScreen.DASHBOARD_MAIN },
+                modifier = modifier
+            )
+        }
+        AdminActiveScreen.REPORTED_POSTS -> {
+            AdminReportedPostsView(
+                postRepository = postRepository,
+                onBack = { currentAdminScreen = AdminActiveScreen.DASHBOARD_MAIN },
+                modifier = modifier
+            )
+        }
+        AdminActiveScreen.FILE_MANAGER -> {
+            AdminFileManagerView(
+                postRepository = postRepository,
+                storyRepository = storyRepository,
                 onBack = { currentAdminScreen = AdminActiveScreen.DASHBOARD_MAIN },
                 modifier = modifier
             )
@@ -376,35 +410,6 @@ fun AdminDashboardView(
                             selected = true,
                             onClick = {
                                 scope.launch { drawerState.close() }
-                            },
-                            colors = drawerItemColors,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-                        )
-
-                        // 1.1 Feed Customization (Prominent in Drawer)
-                        NavigationDrawerItem(
-                            icon = { Icon(Icons.Default.Dashboard, contentDescription = null, tint = Color(0xFF1877F2)) },
-                            label = { Text("Feed Customization (হোম ফিড)", fontWeight = FontWeight.Bold) },
-                            badge = {
-                                Surface(
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = Color(0xFF1877F2)
-                                ) {
-                                    Text(
-                                        text = "NEW",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
-                            },
-                            selected = currentAdminScreen == AdminActiveScreen.FEED_CUSTOMIZATION,
-                            onClick = {
-                                scope.launch {
-                                    drawerState.close()
-                                    currentAdminScreen = AdminActiveScreen.FEED_CUSTOMIZATION
-                                }
                             },
                             colors = drawerItemColors,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
@@ -638,46 +643,91 @@ fun AdminDashboardView(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
                         )
 
-                        // 6.1 Advertisement Management
+                        // 6. Content & Feed Moderation
+                        // 6.1 Reported Posts (Content moderation & user report resolution)
                         NavigationDrawerItem(
-                            icon = { Icon(Icons.Default.Campaign, contentDescription = null, tint = Color(0xFF1877F2)) },
-                            label = { Text("Advertisement Management", fontWeight = FontWeight.Medium) },
+                            icon = { Icon(Icons.Default.Report, contentDescription = null, tint = Color(0xFFDC2626)) },
+                            label = { Text("Reported Posts", fontWeight = FontWeight.Bold) },
                             badge = {
-                                if (pendingAdsCount > 0) {
+                                if (pendingReportsCount > 0) {
                                     Surface(
                                         shape = RoundedCornerShape(10.dp),
-                                        color = Color(0xFFE53935)
+                                        color = Color(0xFFDC2626)
                                     ) {
                                         Text(
-                                            text = "$pendingAdsCount",
+                                            text = "$pendingReportsCount",
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color.White,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                                         )
                                     }
                                 }
                             },
-                            selected = false,
+                            selected = currentAdminScreen == AdminActiveScreen.REPORTED_POSTS,
                             onClick = {
                                 scope.launch {
                                     drawerState.close()
-                                    currentAdminScreen = AdminActiveScreen.AD_MANAGEMENT
+                                    currentAdminScreen = AdminActiveScreen.REPORTED_POSTS
                                 }
                             },
                             colors = drawerItemColors,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
                         )
 
-                        // 6.2 Feed Customization (Admin control for Home feed blocks & friends-only)
+                        // 6.2 File Manager (Images, Videos, Stories management with database delete)
+                        NavigationDrawerItem(
+                            icon = { Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Color(0xFF7C3AED)) },
+                            label = { Text("File Manager", fontWeight = FontWeight.Bold) },
+                            badge = {
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = if (isDarkMode) Color(0xFF7C3AED).copy(alpha = 0.2f) else Color(0xFFEDE9FE)
+                                ) {
+                                    Text(
+                                        text = "${posts.size}",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isDarkMode) Color(0xFFA78BFA) else Color(0xFF7C3AED),
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            },
+                            selected = currentAdminScreen == AdminActiveScreen.FILE_MANAGER,
+                            onClick = {
+                                scope.launch {
+                                    drawerState.close()
+                                    currentAdminScreen = AdminActiveScreen.FILE_MANAGER
+                                }
+                            },
+                            colors = drawerItemColors,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+                        )
+
+                        // 6.3 Feed Customization (Admin control for Home feed blocks & friends-only)
                         NavigationDrawerItem(
                             icon = { Icon(Icons.Default.Dashboard, contentDescription = null, tint = Color(0xFF1877F2)) },
-                            label = { Text("Feed Customization (হোম ফিড)", fontWeight = FontWeight.Bold) },
+                            label = { Text("Feed Customization", fontWeight = FontWeight.Bold) },
                             selected = currentAdminScreen == AdminActiveScreen.FEED_CUSTOMIZATION,
                             onClick = {
                                 scope.launch {
                                     drawerState.close()
                                     currentAdminScreen = AdminActiveScreen.FEED_CUSTOMIZATION
+                                }
+                            },
+                            colors = drawerItemColors,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+                        )
+
+                        // 6.3 Suggested Items Management (Search screen suggestions)
+                        NavigationDrawerItem(
+                            icon = { Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFF1877F2)) },
+                            label = { Text("Suggested Items", fontWeight = FontWeight.Bold) },
+                            selected = currentAdminScreen == AdminActiveScreen.SUGGESTED_ITEMS,
+                            onClick = {
+                                scope.launch {
+                                    drawerState.close()
+                                    currentAdminScreen = AdminActiveScreen.SUGGESTED_ITEMS
                                 }
                             },
                             colors = drawerItemColors,
@@ -995,7 +1045,7 @@ fun AdminDashboardView(
                                                     color = Color(0xFF1877F2)
                                                 ) {
                                                     Text(
-                                                        text = "হোম ফিড",
+                                                        text = "FEED",
                                                         fontSize = 10.sp,
                                                         fontWeight = FontWeight.Bold,
                                                         color = Color.White,
@@ -1004,7 +1054,7 @@ fun AdminDashboardView(
                                                 }
                                             }
                                             Text(
-                                                text = "কাস্টমাইজ করুন স্টোরি, ইমেজ, ভিডিও পোস্টের ক্রম ও সংখ্যা (২-৫)",
+                                                text = "Customize Stories, Images, Video sequence & count (2-5)",
                                                 fontSize = 12.sp,
                                                 color = textSecondary
                                             )
@@ -1382,20 +1432,6 @@ fun AdminDashboardView(
                             )
                         }
 
-                        // 15. Advertisement Campaigns
-                        item {
-                            AdminMetricCard(
-                                title = "Ad Campaigns",
-                                count = "$pendingAdsCount",
-                                subtitle = "$runningAdsCount running • ${allAds.size} total",
-                                icon = Icons.Default.Campaign,
-                                iconBg = Color(0xFFE7F3FF),
-                                iconTint = Color(0xFF1877F2),
-                                badgeAlert = pendingAdsCount > 0,
-                                onClick = { currentAdminScreen = AdminActiveScreen.AD_MANAGEMENT }
-                            )
-                        }
-
                         // ==========================================
                         // 3 DISTINCT REAL DATA GRAPHS / CHARTS
                         // ==========================================
@@ -1457,6 +1493,8 @@ fun AdminDashboardView(
                         }
 
                         val quickLinks = listOf(
+                            Triple("Reported Posts", Icons.Default.Report, AdminActiveScreen.REPORTED_POSTS),
+                            Triple("File Manager", Icons.Default.Folder, AdminActiveScreen.FILE_MANAGER),
                             Triple("User Management", Icons.Default.People, AdminActiveScreen.USER_MANAGEMENT),
                             Triple("Group Management", Icons.Default.Groups, AdminActiveScreen.GROUP_MANAGEMENT),
                             Triple("Page Management", Icons.Default.Pages, AdminActiveScreen.PAGE_MANAGEMENT),
@@ -1466,9 +1504,9 @@ fun AdminDashboardView(
                             Triple("Withdraw Requests", Icons.Default.AccountBalance, AdminActiveScreen.WITHDRAW_REQUESTS),
                             Triple("Send Notifications", Icons.Default.NotificationsActive, AdminActiveScreen.ADMIN_NOTIFICATIONS),
                             Triple("Monetization", Icons.Default.MonetizationOn, AdminActiveScreen.MONETIZATION_REQUESTS),
-                            Triple("Ad Management", Icons.Default.Campaign, AdminActiveScreen.AD_MANAGEMENT),
                             Triple("Payment Setup", Icons.Default.Security, AdminActiveScreen.PAYMENT_METHODS),
                             Triple("Feed Customization", Icons.Default.Dashboard, AdminActiveScreen.FEED_CUSTOMIZATION),
+                            Triple("Suggested Items", Icons.Default.Star, AdminActiveScreen.SUGGESTED_ITEMS),
                             Triple("Settings", Icons.Default.Settings, AdminActiveScreen.SETTINGS)
                         )
 
@@ -1529,13 +1567,13 @@ fun AdminDashboardView(
 
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = "Home Feed Customization (হোম ফিড কাস্টমাইজ)",
+                                            text = "Home Feed Customization",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 15.sp,
                                             color = textPrimary
                                         )
                                         Text(
-                                            text = "কাস্টমাইজ করুন স্টোরি, ইমেজ ও ভিডিও পোস্টের ক্রম ও সংখ্যা (২-৫) এবং ফ্রেন্ডস অনলি পোস্ট টগল",
+                                            text = "Customize Stories, Images & Video sequence, counts (2-5), and friends-only toggle",
                                             fontSize = 12.sp,
                                             color = textSecondary
                                         )

@@ -29,16 +29,6 @@ data class StoryExpiryConfig(
             return parts.joinToString(" ")
         }
 
-    val formattedBanglaSummary: String
-        get() {
-            val parts = mutableListOf<String>()
-            if (hours > 0) parts.add("$hours ঘন্টা")
-            if (minutes > 0) parts.add("$minutes মিনিট")
-            if (seconds > 0) parts.add("$seconds সেকেন্ড")
-            if (parts.isEmpty()) parts.add("২৪ ঘন্টা")
-            return parts.joinToString(" ")
-        }
-
     fun toMap(): Map<String, Any> {
         return mapOf(
             "hours" to hours,

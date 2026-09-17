@@ -74,6 +74,7 @@ class AdminRequestRepository(private val context: Context) {
     private val appSettingsRef: DatabaseReference? by lazy { rtdb?.getReference("admin_app_settings") }
     private val homeFeedConfigRef: DatabaseReference? by lazy { rtdb?.getReference("admin_home_feed_config") }
     private val storyExpiryConfigRef: DatabaseReference? by lazy { rtdb?.getReference("admin_story_expiry_config") }
+    private val suggestedItemsRef: DatabaseReference? by lazy { rtdb?.getReference("admin_suggested_items") }
 
     private val _adminPinFlow = MutableStateFlow<String>(loadAdminPin())
     val adminPinFlow: StateFlow<String> = _adminPinFlow.asStateFlow()
@@ -92,6 +93,9 @@ class AdminRequestRepository(private val context: Context) {
 
     private val _storyExpiryConfigFlow = MutableStateFlow<com.example.data.model.StoryExpiryConfig>(loadStoryExpiryConfig())
     val storyExpiryConfigFlow: StateFlow<com.example.data.model.StoryExpiryConfig> = _storyExpiryConfigFlow.asStateFlow()
+
+    private val _suggestedItemsFlow = MutableStateFlow<List<com.example.data.model.AdminSuggestedItem>>(loadSuggestedItems())
+    val suggestedItemsFlow: StateFlow<List<com.example.data.model.AdminSuggestedItem>> = _suggestedItemsFlow.asStateFlow()
 
     init {
         listenToFirebaseAppSettings()
@@ -145,6 +149,7 @@ class AdminRequestRepository(private val context: Context) {
         listenToFirebaseMonetizationRequests()
         listenToFirebaseHomeFeedConfig()
         listenToFirebaseStoryExpiryConfig()
+        listenToFirebaseSuggestedItems()
     }
 
     private fun loadMaintenanceConfig(): MaintenanceConfig {
@@ -339,6 +344,7 @@ class AdminRequestRepository(private val context: Context) {
             defaultPageDailyLimitVideo = prefs.getInt("app_setting_page_limit_video", 10),
             defaultPageDailyLimitStory = prefs.getInt("app_setting_page_limit_story", 20),
             defaultPageDailyLimitLink = prefs.getInt("app_setting_page_limit_link", 20),
+            leaderboardLimit = prefs.getInt("app_setting_leaderboard_limit", 20),
             updatedAt = prefs.getLong("app_setting_updated_at", System.currentTimeMillis())
         )
     }
@@ -368,6 +374,7 @@ class AdminRequestRepository(private val context: Context) {
             .putInt("app_setting_page_limit_video", settings.defaultPageDailyLimitVideo)
             .putInt("app_setting_page_limit_story", settings.defaultPageDailyLimitStory)
             .putInt("app_setting_page_limit_link", settings.defaultPageDailyLimitLink)
+            .putInt("app_setting_leaderboard_limit", settings.leaderboardLimit)
             .putLong("app_setting_updated_at", settings.updatedAt)
             .apply()
     }
@@ -400,6 +407,7 @@ class AdminRequestRepository(private val context: Context) {
                         val pageVid = snapshot.child("defaultPageDailyLimitVideo").getValue(Int::class.java) ?: 10
                         val pageStory = snapshot.child("defaultPageDailyLimitStory").getValue(Int::class.java) ?: 20
                         val pageLink = snapshot.child("defaultPageDailyLimitLink").getValue(Int::class.java) ?: 20
+                        val leaderboardLimit = snapshot.child("leaderboardLimit").getValue(Int::class.java) ?: 20
                         val updatedAt = snapshot.child("updatedAt").getValue(Long::class.java) ?: System.currentTimeMillis()
 
                         val parsed = AppSystemSettings(
@@ -426,6 +434,7 @@ class AdminRequestRepository(private val context: Context) {
                             defaultPageDailyLimitVideo = pageVid,
                             defaultPageDailyLimitStory = pageStory,
                             defaultPageDailyLimitLink = pageLink,
+                            leaderboardLimit = leaderboardLimit,
                             updatedAt = updatedAt
                         )
                         _appSettingsFlow.value = parsed
@@ -593,6 +602,139 @@ class AdminRequestRepository(private val context: Context) {
         } catch (e: Exception) {
             onComplete?.invoke(true)
         }
+    }
+
+    private fun loadSuggestedItems(): List<com.example.data.model.AdminSuggestedItem> {
+        val json = prefs.getString("admin_suggested_items_json", null) ?: return emptyList()
+        val list = mutableListOf<com.example.data.model.AdminSuggestedItem>()
+        try {
+            val arr = JSONArray(json)
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                list.add(com.example.data.model.AdminSuggestedItem.fromJson(obj))
+            }
+        } catch (_: Exception) {}
+        return list.sortedBy { it.order }
+    }
+
+    private fun saveSuggestedItemsLocally(list: List<com.example.data.model.AdminSuggestedItem>) {
+        val arr = JSONArray()
+        list.forEach { arr.put(it.toJson()) }
+        prefs.edit().putString("admin_suggested_items_json", arr.toString()).apply()
+    }
+
+    private fun listenToFirebaseSuggestedItems() {
+        try {
+            suggestedItemsRef?.addValueEventListener(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val list = mutableListOf<com.example.data.model.AdminSuggestedItem>()
+                    for (child in snapshot.children) {
+                        try {
+                            val id = child.child("id").getValue(String::class.java) ?: child.key ?: ""
+                            val typeStr = child.child("type").getValue(String::class.java) ?: com.example.data.model.SuggestedItemType.PROFILE.name
+                            val type = try {
+                                com.example.data.model.SuggestedItemType.valueOf(typeStr)
+                            } catch (_: Exception) {
+                                com.example.data.model.SuggestedItemType.PROFILE
+                            }
+                            val targetId = child.child("targetId").getValue(String::class.java) ?: ""
+                            val title = child.child("title").getValue(String::class.java) ?: ""
+                            val subtitle = child.child("subtitle").getValue(String::class.java) ?: ""
+                            val imageUrl = child.child("imageUrl").getValue(String::class.java) ?: ""
+                            val isVerified = child.child("isVerified").getValue(Boolean::class.java) ?: false
+                            val badgeText = child.child("badgeText").getValue(String::class.java) ?: ""
+                            val order = child.child("order").getValue(Int::class.java) ?: 0
+                            val createdAt = child.child("createdAt").getValue(Long::class.java) ?: System.currentTimeMillis()
+
+                            list.add(
+                                com.example.data.model.AdminSuggestedItem(
+                                    id = id,
+                                    type = type,
+                                    targetId = targetId,
+                                    title = title,
+                                    subtitle = subtitle,
+                                    imageUrl = imageUrl,
+                                    isVerified = isVerified,
+                                    badgeText = badgeText,
+                                    order = order,
+                                    createdAt = createdAt
+                                )
+                            )
+                        } catch (_: Exception) {}
+                    }
+                    val sorted = list.sortedBy { it.order }
+                    _suggestedItemsFlow.value = sorted
+                    saveSuggestedItemsLocally(sorted)
+                }
+
+                override fun onCancelled(error: DatabaseError) {
+                    Log.w("AdminRequestRepository", "SuggestedItems listener cancelled: ${error.message}")
+                }
+            })
+        } catch (e: Exception) {
+            Log.e("AdminRequestRepository", "Error setting up SuggestedItems listener: ${e.message}")
+        }
+    }
+
+    fun addSuggestedItem(item: com.example.data.model.AdminSuggestedItem, onComplete: ((Boolean) -> Unit)? = null) {
+        val finalItem = if (item.id.isBlank()) item.copy(id = UUID.randomUUID().toString()) else item
+        val current = _suggestedItemsFlow.value.toMutableList()
+        current.add(finalItem)
+        val sorted = current.sortedBy { it.order }
+        _suggestedItemsFlow.value = sorted
+        saveSuggestedItemsLocally(sorted)
+
+        try {
+            suggestedItemsRef?.child(finalItem.id)?.setValue(finalItem.toMap())
+            onComplete?.invoke(true)
+        } catch (e: Exception) {
+            onComplete?.invoke(true)
+        }
+    }
+
+    fun updateSuggestedItem(item: com.example.data.model.AdminSuggestedItem, onComplete: ((Boolean) -> Unit)? = null) {
+        val current = _suggestedItemsFlow.value.toMutableList()
+        val index = current.indexOfFirst { it.id == item.id }
+        if (index >= 0) {
+            current[index] = item
+        } else {
+            current.add(item)
+        }
+        val sorted = current.sortedBy { it.order }
+        _suggestedItemsFlow.value = sorted
+        saveSuggestedItemsLocally(sorted)
+
+        try {
+            suggestedItemsRef?.child(item.id)?.setValue(item.toMap())
+            onComplete?.invoke(true)
+        } catch (e: Exception) {
+            onComplete?.invoke(true)
+        }
+    }
+
+    fun deleteSuggestedItem(id: String, onComplete: ((Boolean) -> Unit)? = null) {
+        val current = _suggestedItemsFlow.value.filterNot { it.id == id }
+        _suggestedItemsFlow.value = current
+        saveSuggestedItemsLocally(current)
+
+        try {
+            suggestedItemsRef?.child(id)?.removeValue()
+            onComplete?.invoke(true)
+        } catch (e: Exception) {
+            onComplete?.invoke(true)
+        }
+    }
+
+    fun reorderSuggestedItems(items: List<com.example.data.model.AdminSuggestedItem>) {
+        val reordered = items.mapIndexed { idx, item -> item.copy(order = idx) }
+        _suggestedItemsFlow.value = reordered
+        saveSuggestedItemsLocally(reordered)
+
+        try {
+            reordered.forEach { item ->
+                suggestedItemsRef?.child(item.id)?.setValue(item.toMap())
+            }
+        } catch (_: Exception) {}
     }
 
     private fun loadAdminPin(): String {

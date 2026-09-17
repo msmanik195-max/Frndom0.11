@@ -2,6 +2,7 @@ package com.example.ui.menu.admin
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -72,6 +73,7 @@ fun AdminSettingsView(
     var pageVideoLimit by remember { mutableStateOf(currentAppSettings.defaultPageDailyLimitVideo.toString()) }
     var pageStoryLimit by remember { mutableStateOf(currentAppSettings.defaultPageDailyLimitStory.toString()) }
     var pageLinkLimit by remember { mutableStateOf(currentAppSettings.defaultPageDailyLimitLink.toString()) }
+    var leaderboardLimit by remember { mutableStateOf(currentAppSettings.leaderboardLimit.toString()) }
 
     // Monetization Rates State
     var reelRate by remember { mutableStateOf(currentMonetization.reelRatePer1000.toString()) }
@@ -120,6 +122,7 @@ fun AdminSettingsView(
         pageVideoLimit = currentAppSettings.defaultPageDailyLimitVideo.toString()
         pageStoryLimit = currentAppSettings.defaultPageDailyLimitStory.toString()
         pageLinkLimit = currentAppSettings.defaultPageDailyLimitLink.toString()
+        leaderboardLimit = currentAppSettings.leaderboardLimit.toString()
     }
 
     LaunchedEffect(currentMonetization) {
@@ -161,6 +164,7 @@ fun AdminSettingsView(
             defaultPageDailyLimitVideo = pageVideoLimit.toIntOrNull() ?: 10,
             defaultPageDailyLimitStory = pageStoryLimit.toIntOrNull() ?: 20,
             defaultPageDailyLimitLink = pageLinkLimit.toIntOrNull() ?: 20,
+            leaderboardLimit = leaderboardLimit.toIntOrNull()?.coerceAtLeast(3) ?: 20,
             updatedAt = System.currentTimeMillis()
         )
         adminRepo.updateAppSettings(updatedAppSettings)
@@ -204,7 +208,7 @@ fun AdminSettingsView(
         )
         adminRepo.updateStoryExpiryConfig(updatedStoryExpiry)
         if (!silent) {
-            Toast.makeText(context, "স্টোরি ডিলিট সময়সীমা সফলভাবে আপডেট করা হয়েছে!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Story auto-delete duration updated successfully!", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -406,7 +410,7 @@ fun AdminSettingsView(
 
                     // Engagement Notifications Toggle
                     SettingToggleRow(
-                        title = "Social Engagement Notifications (লাইক ও কমেন্ট নোটিফিকেশন)",
+                        title = "Social Engagement Notifications",
                         subtitle = "Send notifications for Likes and Comments. If disabled, past like/comment notifications will also be cleared.",
                         icon = Icons.Default.NotificationsActive,
                         iconTint = Color(0xFF0097A7),
@@ -546,7 +550,7 @@ fun AdminSettingsView(
                 }
             }
 
-            // SECTION 3.1: STORY AUTO-DELETE DURATION (স্টোরি ডিলিট টাইম)
+            // SECTION 3.1: STORY AUTO-DELETE DURATION
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -580,13 +584,13 @@ fun AdminSettingsView(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "স্টোরি ডিলিট টাইম (Story Expiry Time)",
+                                text = "Story Expiry Time",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp,
                                 color = textPrimary
                             )
                             Text(
-                                text = "ঘন্টা, মিনিট ও সেকেন্ড নির্ধারণ করুন",
+                                text = "Set hours, minutes, and seconds",
                                 fontSize = 12.sp,
                                 color = textSecondary
                             )
@@ -594,7 +598,7 @@ fun AdminSettingsView(
                     }
 
                     Text(
-                        text = "ব্যবহারকারী বা পেজ কোনো স্টোরি পোস্ট করার পর ঠিক কত ঘন্টা, কত মিনিট ও কত সেকেন্ড পর সেটি Firebase Realtime Database এবং পুরো অ্যাপ থেকে স্থায়ীভাবে মুছে (Auto-delete) যাবে তা সেট করুন।",
+                        text = "Set how long stories remain visible before being automatically and permanently deleted from Firebase Realtime Database and the app.",
                         fontSize = 12.sp,
                         color = textSecondary,
                         lineHeight = 17.sp
@@ -611,7 +615,7 @@ fun AdminSettingsView(
                                 storyExpiryHours = it.filter { ch -> ch.isDigit() }
                                 saveStoryExpiry(silent = true)
                             },
-                            label = { Text("ঘন্টা (Hr)", fontSize = 11.sp) },
+                            label = { Text("Hours (Hr)", fontSize = 11.sp) },
                             placeholder = { Text("24") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier
@@ -627,7 +631,7 @@ fun AdminSettingsView(
                                 storyExpiryMinutes = it.filter { ch -> ch.isDigit() }
                                 saveStoryExpiry(silent = true)
                             },
-                            label = { Text("মিনিট (Min)", fontSize = 11.sp) },
+                            label = { Text("Minutes (Min)", fontSize = 11.sp) },
                             placeholder = { Text("0") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier
@@ -643,7 +647,7 @@ fun AdminSettingsView(
                                 storyExpirySeconds = it.filter { ch -> ch.isDigit() }
                                 saveStoryExpiry(silent = true)
                             },
-                            label = { Text("সেকেন্ড (Sec)", fontSize = 11.sp) },
+                            label = { Text("Seconds (Sec)", fontSize = 11.sp) },
                             placeholder = { Text("0") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier
@@ -678,13 +682,13 @@ fun AdminSettingsView(
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
                                 Text(
-                                    text = "কার্যকর মেয়াদ: $h ঘন্টা $m মিনিট $s সেকেন্ড",
+                                    text = "Effective Duration: $h hr $m min $s sec",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFFD81B60)
                                 )
                                 Text(
-                                    text = "পোস্ট করার পর ঠিক $totalSec সেকেন্ড পর স্টোরিটি ডাটাবেজ থেকে স্বয়ংক্রিয়ভাবে চিরতরে ডিলিট হয়ে যাবে।",
+                                    text = "Stories will auto-delete $totalSec seconds after posting.",
                                     fontSize = 11.sp,
                                     color = textSecondary
                                 )
@@ -694,7 +698,7 @@ fun AdminSettingsView(
 
                     // Quick Presets
                     Text(
-                        text = "কুইক প্রিসেট (Quick Presets):",
+                        text = "Quick Presets:",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = textPrimary
@@ -712,7 +716,7 @@ fun AdminSettingsView(
                                 storyExpirySeconds = "30"
                                 saveStoryExpiry(silent = true)
                             },
-                            label = { Text("৩০ সেকেন্ড (টেস্ট)", fontSize = 10.sp) },
+                            label = { Text("30s (Test)", fontSize = 10.sp) },
                             modifier = Modifier.weight(1f)
                         )
                         FilterChip(
@@ -723,7 +727,7 @@ fun AdminSettingsView(
                                 storyExpirySeconds = "0"
                                 saveStoryExpiry(silent = true)
                             },
-                            label = { Text("৫ মিনিট", fontSize = 10.sp) },
+                            label = { Text("5 mins", fontSize = 10.sp) },
                             modifier = Modifier.weight(1f)
                         )
                         FilterChip(
@@ -734,7 +738,7 @@ fun AdminSettingsView(
                                 storyExpirySeconds = "0"
                                 saveStoryExpiry(silent = true)
                             },
-                            label = { Text("১ ঘন্টা", fontSize = 10.sp) },
+                            label = { Text("1 hour", fontSize = 10.sp) },
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -751,7 +755,7 @@ fun AdminSettingsView(
                                 storyExpirySeconds = "0"
                                 saveStoryExpiry(silent = true)
                             },
-                            label = { Text("৬ ঘন্টা", fontSize = 10.sp) },
+                            label = { Text("6 hours", fontSize = 10.sp) },
                             modifier = Modifier.weight(1f)
                         )
                         FilterChip(
@@ -762,7 +766,7 @@ fun AdminSettingsView(
                                 storyExpirySeconds = "0"
                                 saveStoryExpiry(silent = true)
                             },
-                            label = { Text("১২ ঘন্টা", fontSize = 10.sp) },
+                            label = { Text("12 hours", fontSize = 10.sp) },
                             modifier = Modifier.weight(1f)
                         )
                         FilterChip(
@@ -773,7 +777,7 @@ fun AdminSettingsView(
                                 storyExpirySeconds = "0"
                                 saveStoryExpiry(silent = true)
                             },
-                            label = { Text("২৪ ঘন্টা (স্বাভাবিক)", fontSize = 10.sp) },
+                            label = { Text("24 hours (Default)", fontSize = 10.sp) },
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -790,7 +794,7 @@ fun AdminSettingsView(
                         Icon(imageVector = Icons.Default.Save, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "স্টোরি ডিলিট সময়সীমা সংরক্ষণ করুন",
+                            text = "Save Story Expiry Duration",
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
@@ -799,7 +803,7 @@ fun AdminSettingsView(
                 }
             }
 
-            // SECTION 3.2: HOME FEED CUSTOMIZATION (হোম পেজ কাস্টমাইজেশন - শুধুমাত্র এডমিন)
+            // SECTION 3.2: HOME FEED CUSTOMIZATION (Admin Only)
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -833,13 +837,13 @@ fun AdminSettingsView(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "হোম পেজ কাস্টমাইজেশন (Home Feed Control)",
+                                text = "Home Feed Control",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp,
                                 color = textPrimary
                             )
                             Text(
-                                text = "ইউজাররা পরিবর্তন করতে পারবে না, শুধু এডমিন নিয়ন্ত্রণ করবে",
+                                text = "Controlled exclusively by Admin",
                                 fontSize = 12.sp,
                                 color = textSecondary
                             )
@@ -847,7 +851,7 @@ fun AdminSettingsView(
                     }
 
                     Text(
-                        text = "হোম ফিডে কোন সেকশন আগে বা পরে আসবে (যেমন: স্টোরি, ইমেজ পোস্ট, ভিডিও পোস্ট, ফ্রেন্ড সাজেশন) এবং প্রতি সেকশনে কতটি করে পোস্ট দেখাবে (যেমন: ২ থেকে ৫ টি), তা আপনি এখান থেকে যেভাবে সেট করে দিবেন সাধারণ ইউজাররা ঠিক সেভাবেই দেখতে পাবে।",
+                        text = "Control the ordering of sections (Stories, Images, Videos, Friend Suggestions) and the number of posts per section (2 to 5 items) shown to users on the home feed.",
                         fontSize = 12.sp,
                         color = textSecondary,
                         lineHeight = 17.sp
@@ -866,7 +870,7 @@ fun AdminSettingsView(
                             Icon(imageVector = Icons.Default.Tune, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "হোম ফিড কাস্টমাইজ করুন",
+                                text = "Customize Home Feed",
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
@@ -1142,6 +1146,103 @@ fun AdminSettingsView(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp)
+                    )
+                }
+            }
+
+            // SECTION 7: LEADERBOARD SETTINGS
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = bgCard),
+                elevation = CardDefaults.cardElevation(2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(Color(0xFFFFB300).copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.EmojiEvents,
+                                contentDescription = null,
+                                tint = Color(0xFFFFB300),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Leaderboard Settings",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = Color(0xFF1877F2)
+                            )
+                            Text(
+                                text = "Control total profiles & pages displayed on the leaderboard (Default: 20)",
+                                fontSize = 12.sp,
+                                color = textSecondary
+                            )
+                        }
+                    }
+
+                    Divider(color = if (isDarkMode) Color(0xFF3A3B3C) else Color(0xFFE4E6EB))
+
+                    Text(
+                        text = "Total Leaderboard Display Count",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                        color = textPrimary
+                    )
+
+                    OutlinedTextField(
+                        value = leaderboardLimit,
+                        onValueChange = { leaderboardLimit = it },
+                        label = { Text("Leaderboard Limit (Default 20)") },
+                        placeholder = { Text("e.g., 20") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        singleLine = true
+                    )
+
+                    // Quick Selection Chips
+                    Text(
+                        text = "Quick Presets:",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = textSecondary
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(10, 20, 30, 50, 100).forEach { preset ->
+                            val isSelected = leaderboardLimit == preset.toString()
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (isSelected) Color(0xFF1877F2) else (if (isDarkMode) Color(0xFF3A3B3C) else Color(0xFFE4E6EB)),
+                                modifier = Modifier.clickable { leaderboardLimit = preset.toString() }
+                            ) {
+                                Text(
+                                    text = "$preset",
+                                    color = if (isSelected) Color.White else textPrimary,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = "ℹ️ Top 3 entries are displayed in the Gold, Silver, and Bronze podium. The remaining ${(leaderboardLimit.toIntOrNull() ?: 20) - 3} entries are shown in the list below.",
+                        fontSize = 12.sp,
+                        color = Color(0xFF1877F2),
+                        lineHeight = 16.sp
                     )
                 }
             }

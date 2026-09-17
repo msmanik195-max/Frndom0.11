@@ -426,4 +426,15 @@ class GroupPageRepository(private val context: Context) {
         } catch (_: Exception) {}
         return list
     }
+
+    companion object {
+        @Volatile
+        private var instance: GroupPageRepository? = null
+
+        fun getInstance(context: Context): GroupPageRepository {
+            return instance ?: synchronized(this) {
+                instance ?: GroupPageRepository(context.applicationContext).also { instance = it }
+            }
+        }
+    }
 }

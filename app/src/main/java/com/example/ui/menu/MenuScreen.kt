@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Group
@@ -78,6 +79,7 @@ import com.example.data.repository.PostRepository
 import com.example.data.repository.UserRepository
 import com.example.data.repository.WatchHistoryRepository
 import com.example.data.service.MediaUploadService
+import com.example.ui.advertisement.AdvertisementComingSoonView
 import com.example.ui.advertisement.AdvertisementScreen
 import com.example.ui.menu.admin.AdminDashboardView
 import com.example.ui.menu.admin.AdminDepositRequestsView
@@ -111,7 +113,8 @@ enum class MenuSubScreen {
     ADMIN_VERIFICATIONS,
     ADMIN_PAYMENT_METHODS,
     ADMIN_FEED_CUSTOMIZATION,
-    ADVERTISEMENT
+    ADVERTISEMENT,
+    LEADERBOARD
 }
 
 @Composable
@@ -309,10 +312,8 @@ fun MenuScreen(
             )
         }
         MenuSubScreen.ADVERTISEMENT -> {
-            AdvertisementScreen(
-                currentUser = userProfile,
+            AdvertisementComingSoonView(
                 onBack = { currentSubScreen = MenuSubScreen.MAIN },
-                onNavigateToDeposit = { currentSubScreen = MenuSubScreen.DEPOSIT },
                 modifier = modifier
             )
         }
@@ -321,6 +322,22 @@ fun MenuScreen(
             AdminFeedCustomizationView(
                 adminRepo = adminRepo,
                 onBack = { currentSubScreen = MenuSubScreen.MAIN },
+                modifier = modifier
+            )
+        }
+        MenuSubScreen.LEADERBOARD -> {
+            LeaderboardScreen(
+                userRepository = userRepository,
+                postRepository = postRepository,
+                groupPageRepository = groupPageRepository,
+                onBack = { currentSubScreen = MenuSubScreen.MAIN },
+                onUserClick = { clickedUser ->
+                    currentSubScreen = MenuSubScreen.MAIN
+                    onOpenChat(clickedUser, clickedUser.uid)
+                },
+                onPageClick = { clickedPage ->
+                    currentSubScreen = MenuSubScreen.PAGES
+                },
                 modifier = modifier
             )
         }
@@ -581,11 +598,11 @@ fun MenuScreen(
                             )
                         }
 
-                        // 9. Advertisement
+                        // 9. Advertisement (Coming Soon)
                         item {
                             FacebookMenuCard(
                                 title = "Advertisement",
-                                subtitle = "Run & manage ads",
+                                subtitle = "Coming Soon",
                                 icon = Icons.Default.Campaign,
                                 iconColor = Color(0xFF1877F2),
                                 iconBgColor = Color(0xFFE7F3FF),
@@ -594,16 +611,16 @@ fun MenuScreen(
                             )
                         }
 
-                        // 10. Feed Customization (Admin control)
+                        // 10. Leaderboard
                         item {
                             FacebookMenuCard(
-                                title = "Feed Customization",
-                                subtitle = "হোম ফিড কাস্টমাইজ",
-                                icon = Icons.Default.Dashboard,
-                                iconColor = Color(0xFF1877F2),
-                                iconBgColor = Color(0xFFE7F3FF),
-                                onClick = { currentSubScreen = MenuSubScreen.ADMIN_FEED_CUSTOMIZATION },
-                                tag = "menu_card_feed_customization"
+                                title = "Leaderboard",
+                                subtitle = "Top Creators & Profiles",
+                                icon = Icons.Default.EmojiEvents,
+                                iconColor = Color(0xFFFFB300),
+                                iconBgColor = Color(0xFFFFF8E1),
+                                onClick = { currentSubScreen = MenuSubScreen.LEADERBOARD },
+                                tag = "menu_card_leaderboard"
                             )
                         }
 

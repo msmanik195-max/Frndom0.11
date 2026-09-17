@@ -32,6 +32,9 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.Warning
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
@@ -107,7 +110,12 @@ fun CreatePageScreen(
     val bannerEmptyBg = if (isDarkMode) Color(0xFF2A2B2D) else Color(0xFFE4E6EB)
 
     var pageName by remember { mutableStateOf(pageToEdit?.name.orEmpty()) }
-    var pageCategory by remember { mutableStateOf(pageToEdit?.category ?: "Digital Creator") }
+    var pagePurpose by remember {
+        mutableStateOf(
+            if (pageToEdit?.category?.contains("Business", ignoreCase = true) == true || pageToEdit?.category?.contains("Brand", ignoreCase = true) == true) "Business" else "Creator"
+        )
+    }
+    var pageCategory by remember { mutableStateOf(pageToEdit?.category ?: "Creator") }
     var pageDescription by remember { mutableStateOf(pageToEdit?.description.orEmpty()) }
     var pagePrivacy by remember { mutableStateOf(if (pageToEdit?.id?.isNotBlank() == true) "Public" else "Public") }
 
@@ -550,6 +558,7 @@ fun CreatePageScreen(
                 }
 
                 // Section 3: Category Selection
+                // Section 3: Page Purpose & Category (Business vs Creator)
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -562,19 +571,113 @@ fun CreatePageScreen(
                             .padding(16.dp)
                     ) {
                         Text(
-                            text = "Select Category",
+                            text = "Page Purpose",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = textPrimary
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "A category helps people discover your page easily",
+                            text = "Select what you are creating this page for: Business or Creator",
                             fontSize = 12.sp,
                             color = textSecondary
                         )
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // 2 Primary Purpose Cards: Business, Creator
+                        val purposeOptions = listOf(
+                            Triple("Business", "Business", "For brands, stores, products, companies, and organizations"),
+                            Triple("Creator", "Creator", "For content creators, public figures, influencers, and artists")
+                        )
+
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            purposeOptions.forEach { (id, title, desc) ->
+                                val isSelected = pagePurpose == id
+                                val purposeIcon = when (id) {
+                                    "Business" -> Icons.Default.Storefront
+                                    else -> Icons.Default.VideoLibrary
+                                }
+                                val accentColor = when (id) {
+                                    "Business" -> Color(0xFF1877F2)
+                                    else -> Color(0xFF00A859)
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = if (isSelected) accentColor.copy(alpha = if (isDarkMode) 0.15f else 0.08f) else (if (isDarkMode) Color(0xFF2A2B2D) else Color(0xFFF7F8FA)),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        width = if (isSelected) 2.dp else 1.dp,
+                                        color = if (isSelected) accentColor else (if (isDarkMode) Color(0xFF3A3B3C) else Color(0xFFE4E6EB))
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            pagePurpose = id
+                                            pageCategory = id
+                                        }
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(40.dp)
+                                                .background(accentColor.copy(alpha = 0.15f), CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = purposeIcon,
+                                                contentDescription = null,
+                                                tint = accentColor,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(12.dp))
+
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = title,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 14.sp,
+                                                color = if (isSelected) accentColor else textPrimary
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = desc,
+                                                fontSize = 11.sp,
+                                                color = textSecondary
+                                            )
+                                        }
+
+                                        RadioButton(
+                                            selected = isSelected,
+                                            onClick = {
+                                                pagePurpose = id
+                                                pageCategory = id
+                                            },
+                                            colors = RadioButtonDefaults.colors(selectedColor = accentColor)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Optional sub-category chips
+                        Text(
+                            text = "Additional Category Tag (Optional):",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = textPrimary
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             categories.chunked(2).forEach { rowCategories ->

@@ -97,6 +97,7 @@ import com.example.data.repository.WalletRepository
 import com.example.data.service.MediaUploadService
 import com.example.ui.components.VerificationBadge
 import com.example.ui.menu.DepositScreen
+import com.example.ui.theme.LocalIsDarkMode
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -227,21 +228,29 @@ fun VerificationBadgeScreen(
         else -> "User"
     }
 
+    val isDarkMode = LocalIsDarkMode.current
+    val bgScreen = if (isDarkMode) Color(0xFF18191A) else Color(0xFFF0F2F5)
+    val cardBg = if (isDarkMode) Color(0xFF242526) else Color.White
+    val textPrimary = if (isDarkMode) Color(0xFFE4E6EB) else Color(0xFF050505)
+    val textSecondary = if (isDarkMode) Color(0xFFB0B3B8) else Color(0xFF65676B)
+    val dividerColor = if (isDarkMode) Color(0xFF3A3B3C) else Color(0xFFE4E6EB)
+    val surfaceSubtle = if (isDarkMode) Color(0xFF3A3B3C) else Color(0xFFF0F2F5)
+
     val primaryGreen = Color(0xFF00C853)
     val darkGreen = Color(0xFF008937)
-    val lightGreenBg = Color(0xFFE8F5E9)
+    val lightGreenBg = if (isDarkMode) Color(0xFF1B3320) else Color(0xFFE8F5E9)
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFFF0F2F5))
+            .background(bgScreen)
             .testTag("verification_badge_screen")
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Header
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = Color.White,
+                color = cardBg,
                 shadowElevation = 2.dp
             ) {
                 Row(
@@ -254,7 +263,7 @@ fun VerificationBadgeScreen(
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
                             contentDescription = "Back",
-                            tint = Color(0xFF050505)
+                            tint = textPrimary
                         )
                     }
                     Spacer(modifier = Modifier.width(4.dp))
@@ -262,7 +271,7 @@ fun VerificationBadgeScreen(
                         text = "Verification Badge",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF050505)
+                        color = textPrimary
                     )
                 }
             }
@@ -279,7 +288,7 @@ fun VerificationBadgeScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        colors = CardDefaults.cardColors(containerColor = cardBg),
                         elevation = CardDefaults.cardElevation(2.dp)
                     ) {
                         Box(
@@ -287,7 +296,11 @@ fun VerificationBadgeScreen(
                                 .fillMaxWidth()
                                 .background(
                                     Brush.verticalGradient(
-                                        listOf(Color(0xFFE8F5E9), Color.White)
+                                        if (isDarkMode) {
+                                            listOf(Color(0xFF1B3320), cardBg)
+                                        } else {
+                                            listOf(Color(0xFFE8F5E9), Color.White)
+                                        }
                                     )
                                 )
                                 .padding(20.dp),
@@ -316,14 +329,14 @@ fun VerificationBadgeScreen(
                                     text = "Get Verified with Green Badge",
                                     fontSize = 22.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF050505),
+                                    color = textPrimary,
                                     textAlign = TextAlign.Center
                                 )
 
                                 Text(
                                     text = "Build instant credibility, stand out in conversations, and unlock priority visibility across feed, marketplace, and comments.",
                                     fontSize = 14.sp,
-                                    color = Color(0xFF65676B),
+                                    color = textSecondary,
                                     textAlign = TextAlign.Center,
                                     lineHeight = 20.sp
                                 )
@@ -345,7 +358,9 @@ fun VerificationBadgeScreen(
                                             .fillMaxWidth()
                                             .padding(top = 8.dp),
                                         shape = RoundedCornerShape(14.dp),
-                                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF1F8E9)),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (isDarkMode) Color(0xFF1B3320) else Color(0xFFF1F8E9)
+                                        ),
                                         border = androidx.compose.foundation.BorderStroke(1.5.dp, primaryGreen)
                                     ) {
                                         Column(
@@ -468,14 +483,14 @@ fun VerificationBadgeScreen(
                                 text = "Live Profile Preview",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF050505)
+                                color = textPrimary
                             )
                         }
 
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = cardBg),
                             elevation = CardDefaults.cardElevation(2.dp)
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
@@ -532,10 +547,10 @@ fun VerificationBadgeScreen(
                                         Surface(
                                             modifier = Modifier
                                                 .size(86.dp)
-                                                .border(3.dp, Color.White, CircleShape)
+                                                .border(3.dp, if (isDarkMode) Color(0xFF3A3B3C) else Color.White, CircleShape)
                                                 .shadow(4.dp, CircleShape),
                                             shape = CircleShape,
-                                            color = Color(0xFFE4E6EB)
+                                            color = if (isDarkMode) Color(0xFF3A3B3C) else Color(0xFFE4E6EB)
                                         ) {
                                             if (activeProfile.profilePictureUrl.isNotBlank()) {
                                                 AsyncImage(
@@ -573,7 +588,7 @@ fun VerificationBadgeScreen(
                                             text = displayName,
                                             fontSize = 20.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF050505),
+                                            color = textPrimary,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
@@ -590,7 +605,7 @@ fun VerificationBadgeScreen(
                                         Text(
                                             text = activeProfile.bio,
                                             fontSize = 13.sp,
-                                            color = Color(0xFF65676B),
+                                            color = textSecondary,
                                             textAlign = TextAlign.Center,
                                             maxLines = 2,
                                             overflow = TextOverflow.Ellipsis
@@ -607,18 +622,18 @@ fun VerificationBadgeScreen(
                                             text = "${activeProfile.followersCount} followers",
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.SemiBold,
-                                            color = Color(0xFF65676B)
+                                            color = textSecondary
                                         )
                                         Text(
                                             text = "•",
                                             fontSize = 13.sp,
-                                            color = Color(0xFF65676B)
+                                            color = textSecondary
                                         )
                                         Text(
                                             text = "${activeProfile.followingCount} following",
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.SemiBold,
-                                            color = Color(0xFF65676B)
+                                            color = textSecondary
                                         )
                                     }
                                 }
@@ -634,14 +649,14 @@ fun VerificationBadgeScreen(
                             text = "What's Included",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF050505),
+                            color = textPrimary,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
 
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = cardBg),
                             elevation = CardDefaults.cardElevation(1.dp)
                         ) {
                             Column(
@@ -655,7 +670,7 @@ fun VerificationBadgeScreen(
                                     description = "Your audience knows that you are the real, authentic you with a verified seal on your profile, posts, and comments."
                                 )
 
-                                Divider(thickness = 0.5.dp, color = Color(0xFFE4E6EB))
+                                Divider(thickness = 0.5.dp, color = dividerColor)
 
                                 BenefitItem(
                                     icon = Icons.Default.TrendingUp,
@@ -664,7 +679,7 @@ fun VerificationBadgeScreen(
                                     description = "Your posts, reels, marketplace listings, and comments are ranked higher and displayed with high visibility."
                                 )
 
-                                Divider(thickness = 0.5.dp, color = Color(0xFFE4E6EB))
+                                Divider(thickness = 0.5.dp, color = dividerColor)
 
                                 BenefitItem(
                                     icon = Icons.Default.Security,
@@ -673,7 +688,7 @@ fun VerificationBadgeScreen(
                                     description = "Advanced identity defense and impersonation monitoring designed to protect your creator reputation."
                                 )
 
-                                Divider(thickness = 0.5.dp, color = Color(0xFFE4E6EB))
+                                Divider(thickness = 0.5.dp, color = dividerColor)
 
                                 BenefitItem(
                                     icon = Icons.Default.Star,
@@ -693,7 +708,7 @@ fun VerificationBadgeScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp),
                         shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        colors = CardDefaults.cardColors(containerColor = cardBg),
                         elevation = CardDefaults.cardElevation(1.dp)
                     ) {
                         Row(
@@ -706,7 +721,7 @@ fun VerificationBadgeScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Surface(
                                     shape = CircleShape,
-                                    color = Color(0xFFE8F1FD),
+                                    color = if (isDarkMode) Color(0xFF0B5ED7).copy(alpha = 0.2f) else Color(0xFFE8F1FD),
                                     modifier = Modifier.size(42.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
@@ -725,14 +740,14 @@ fun VerificationBadgeScreen(
                                     Text(
                                         text = "Wallet Balance",
                                         fontSize = 12.sp,
-                                        color = Color(0xFF65676B)
+                                        color = textSecondary
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = "BDT ${String.format(Locale.US, "%.2f", walletBalance)}",
                                         fontSize = 17.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF050505)
+                                        color = textPrimary
                                     )
                                 }
                             }
@@ -775,7 +790,7 @@ fun VerificationBadgeScreen(
                             text = "Select a Verification Plan",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF050505)
+                            color = textPrimary
                         )
                         Text(
                             text = "Special Promotional Offer • Instant Activation",
@@ -795,12 +810,14 @@ fun VerificationBadgeScreen(
                                     .clickable { selectedPlanIndex = index }
                                     .border(
                                         width = if (isSelected) 2.dp else 1.dp,
-                                        color = if (isSelected) primaryGreen else Color(0xFFE4E6EB),
+                                        color = if (isSelected) primaryGreen else dividerColor,
                                         shape = RoundedCornerShape(14.dp)
                                     ),
                                 shape = RoundedCornerShape(14.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (isSelected) Color(0xFFF1F8E9) else Color.White
+                                    containerColor = if (isSelected) {
+                                        if (isDarkMode) Color(0xFF1B3320) else Color(0xFFF1F8E9)
+                                    } else cardBg
                                 ),
                                 elevation = CardDefaults.cardElevation(if (isSelected) 2.dp else 1.dp)
                             ) {
@@ -817,7 +834,7 @@ fun VerificationBadgeScreen(
                                                 color = if (isSelected) primaryGreen else Color.Transparent,
                                                 border = androidx.compose.foundation.BorderStroke(
                                                     width = 2.dp,
-                                                    color = if (isSelected) primaryGreen else Color(0xFFB0B3B8)
+                                                    color = if (isSelected) primaryGreen else textSecondary
                                                 ),
                                                 modifier = Modifier.size(20.dp)
                                             ) {
@@ -840,12 +857,12 @@ fun VerificationBadgeScreen(
                                                     text = plan.title,
                                                     fontSize = 16.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = Color(0xFF050505)
+                                                    color = textPrimary
                                                 )
                                                 Text(
                                                     text = plan.durationText,
                                                     fontSize = 12.sp,
-                                                    color = Color(0xFF65676B)
+                                                    color = textSecondary
                                                 )
                                             }
                                         }
@@ -856,7 +873,7 @@ fun VerificationBadgeScreen(
                                                 text = if (plan.isFree || plan.price <= 0.0) "FREE" else "${plan.currency} ${if (plan.price % 1.0 == 0.0) plan.price.toInt() else plan.price}",
                                                 fontSize = 18.sp,
                                                 fontWeight = FontWeight.ExtraBold,
-                                                color = if (plan.isFree) primaryGreen else if (isSelected) darkGreen else Color(0xFF050505)
+                                                color = if (plan.isFree) primaryGreen else if (isSelected) primaryGreen else textPrimary
                                             )
                                             if (plan.tag != null) {
                                                 Surface(
@@ -868,7 +885,7 @@ fun VerificationBadgeScreen(
                                                         text = plan.tag,
                                                         fontSize = 10.sp,
                                                         fontWeight = FontWeight.Bold,
-                                                        color = darkGreen,
+                                                        color = primaryGreen,
                                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                                     )
                                                 }
@@ -880,7 +897,7 @@ fun VerificationBadgeScreen(
                                     Text(
                                         text = plan.description,
                                         fontSize = 12.sp,
-                                        color = Color(0xFF65676B),
+                                        color = textSecondary,
                                         modifier = Modifier.padding(start = 32.dp)
                                     )
                                 }
@@ -906,7 +923,7 @@ fun VerificationBadgeScreen(
                                 Icon(
                                     imageVector = Icons.Default.Badge,
                                     contentDescription = null,
-                                    tint = if (requireIdCard) Color(0xFF1877F2) else Color(0xFF65676B),
+                                    tint = if (requireIdCard) Color(0xFF1877F2) else textSecondary,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -914,18 +931,22 @@ fun VerificationBadgeScreen(
                                     text = "National ID Verification",
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF050505)
+                                    color = textPrimary
                                 )
                             }
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = if (requireIdCard) Color(0xFFFFEBEE) else Color(0xFFE8F5E9)
+                                color = if (requireIdCard) {
+                                    if (isDarkMode) Color(0xFF4A1A1A) else Color(0xFFFFEBEE)
+                                } else {
+                                    if (isDarkMode) Color(0xFF1B3320) else Color(0xFFE8F5E9)
+                                }
                             ) {
                                 Text(
                                     text = if (requireIdCard) "REQUIRED" else "OPTIONAL",
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (requireIdCard) Color(0xFFD32F2F) else Color(0xFF2E7D32),
+                                    color = if (requireIdCard) Color(0xFFFF5252) else primaryGreen,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                 )
                             }
@@ -937,7 +958,7 @@ fun VerificationBadgeScreen(
                             else
                                 "Attach front and back photos of your Government ID for faster approval (optional).",
                             fontSize = 12.sp,
-                            color = Color(0xFF65676B)
+                            color = textSecondary
                         )
 
                         Spacer(modifier = Modifier.height(2.dp))
@@ -1048,7 +1069,7 @@ fun VerificationBadgeScreen(
                         Text(
                             text = "Instant Badge Activation • Green Badge will appear next to your name everywhere",
                             fontSize = 11.sp,
-                            color = Color(0xFF65676B),
+                            color = textSecondary,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -1087,7 +1108,7 @@ fun VerificationBadgeScreen(
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
                     textAlign = TextAlign.Center,
-                    color = Color(0xFF050505)
+                    color = textPrimary
                 )
             },
             text = {
@@ -1099,14 +1120,14 @@ fun VerificationBadgeScreen(
                     Text(
                         text = "You do not have enough funds in your wallet to activate the Verification Badge. Please deposit funds.",
                         fontSize = 14.sp,
-                        color = Color(0xFF65676B),
+                        color = textSecondary,
                         textAlign = TextAlign.Center,
                         lineHeight = 20.sp
                     )
 
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFFF0F2F5),
+                        color = surfaceSubtle,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
@@ -1117,19 +1138,19 @@ fun VerificationBadgeScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(text = "Package Price:", fontSize = 13.sp, color = Color(0xFF65676B))
+                                Text(text = "Package Price:", fontSize = 13.sp, color = textSecondary)
                                 Text(
                                     text = "BDT ${selectedPlan.price.toInt()}",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF050505)
+                                    color = textPrimary
                                 )
                             }
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(text = "Current Balance:", fontSize = 13.sp, color = Color(0xFF65676B))
+                                Text(text = "Current Balance:", fontSize = 13.sp, color = textSecondary)
                                 Text(
                                     text = "BDT ${String.format(Locale.US, "%.2f", walletBalance)}",
                                     fontSize = 13.sp,
@@ -1137,7 +1158,7 @@ fun VerificationBadgeScreen(
                                     color = Color(0xFFD32F2F)
                                 )
                             }
-                            Divider(thickness = 0.5.dp, color = Color(0xFFD0D2D6))
+                            Divider(thickness = 0.5.dp, color = dividerColor)
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
@@ -1201,13 +1222,13 @@ fun VerificationBadgeScreen(
                 ) {
                     Text(
                         text = "Cancel",
-                        color = Color(0xFF65676B),
+                        color = textSecondary,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
             },
             shape = RoundedCornerShape(16.dp),
-            containerColor = Color.White
+            containerColor = cardBg
         )
     }
 
@@ -1230,7 +1251,7 @@ fun VerificationBadgeScreen(
                         text = if (isBadgeActive) "Confirm Extension" else "Confirm Verification",
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp,
-                        color = Color(0xFF050505)
+                        color = textPrimary
                     )
                 }
             },
@@ -1239,12 +1260,12 @@ fun VerificationBadgeScreen(
                     Text(
                         text = "BDT ${selectedPlan.price.toInt()} will be deducted from your wallet to activate the Green Verification Badge.",
                         fontSize = 14.sp,
-                        color = Color(0xFF050505),
+                        color = textPrimary,
                         lineHeight = 20.sp
                     )
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFFE8F5E9),
+                        color = lightGreenBg,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
@@ -1255,34 +1276,34 @@ fun VerificationBadgeScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(text = "Package:", fontSize = 13.sp, color = Color(0xFF008937), fontWeight = FontWeight.Medium)
-                                Text(text = selectedPlan.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF008937))
+                                Text(text = "Package:", fontSize = 13.sp, color = primaryGreen, fontWeight = FontWeight.Medium)
+                                Text(text = selectedPlan.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = primaryGreen)
                             }
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(text = "Price to Deduct:", fontSize = 13.sp, color = Color(0xFF008937), fontWeight = FontWeight.Medium)
-                                Text(text = "BDT ${selectedPlan.price.toInt()}", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF008937))
+                                Text(text = "Price to Deduct:", fontSize = 13.sp, color = primaryGreen, fontWeight = FontWeight.Medium)
+                                Text(text = "BDT ${selectedPlan.price.toInt()}", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = primaryGreen)
                             }
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(text = "Validity:", fontSize = 13.sp, color = Color(0xFF008937), fontWeight = FontWeight.Medium)
-                                Text(text = selectedPlan.durationText, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF008937))
+                                Text(text = "Validity:", fontSize = 13.sp, color = primaryGreen, fontWeight = FontWeight.Medium)
+                                Text(text = selectedPlan.durationText, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = primaryGreen)
                             }
-                            Divider(thickness = 0.5.dp, color = Color(0xFFA5D6A7), modifier = Modifier.padding(vertical = 2.dp))
+                            Divider(thickness = 0.5.dp, color = primaryGreen.copy(alpha = 0.4f), modifier = Modifier.padding(vertical = 2.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(text = "Wallet Balance After:", fontSize = 12.sp, color = Color(0xFF2E7D32))
+                                Text(text = "Wallet Balance After:", fontSize = 12.sp, color = primaryGreen)
                                 Text(
                                     text = "BDT ${String.format(Locale.US, "%.2f", walletBalance - selectedPlan.price)}",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF2E7D32)
+                                    color = primaryGreen
                                 )
                             }
                         }
@@ -1290,7 +1311,7 @@ fun VerificationBadgeScreen(
                     Text(
                         text = "Once confirmed, the amount will be deducted and sent for verification. Upon admin approval, the Green Badge will be activated beside your profile name. If rejected, the full amount will be refunded to your wallet.",
                         fontSize = 12.sp,
-                        color = Color(0xFF65676B),
+                        color = textSecondary,
                         lineHeight = 16.sp
                     )
                 }
@@ -1396,11 +1417,11 @@ fun VerificationBadgeScreen(
                     enabled = !isProcessingPurchase,
                     modifier = Modifier.testTag("cancel_purchase_dialog_button")
                 ) {
-                    Text(text = "Cancel", color = Color(0xFF65676B), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text(text = "Cancel", color = textSecondary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 }
             },
             shape = RoundedCornerShape(16.dp),
-            containerColor = Color.White
+            containerColor = cardBg
         )
     }
 
@@ -1412,7 +1433,7 @@ fun VerificationBadgeScreen(
                     .fillMaxWidth()
                     .padding(8.dp),
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = cardBg),
                 elevation = CardDefaults.cardElevation(6.dp)
             ) {
                 Column(
@@ -1425,7 +1446,7 @@ fun VerificationBadgeScreen(
                     // Big Badge Animation Card
                     Surface(
                         shape = CircleShape,
-                        color = Color(0xFFE8F5E9),
+                        color = primaryGreen.copy(alpha = 0.15f),
                         modifier = Modifier.size(80.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
@@ -1441,13 +1462,13 @@ fun VerificationBadgeScreen(
                         text = "Request Submitted!",
                         fontSize = 22.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = Color(0xFF050505)
+                        color = textPrimary
                     )
 
                     Text(
                         text = "Your verification request has been submitted to Admin. Once approved, your Green Badge will be activated and displayed beside your name. If rejected, your balance will be automatically refunded.",
                         fontSize = 13.sp,
-                        color = Color(0xFF65676B),
+                        color = textSecondary,
                         textAlign = TextAlign.Center,
                         lineHeight = 18.sp
                     )
@@ -1455,7 +1476,7 @@ fun VerificationBadgeScreen(
                     // Details Card
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFFF0F2F5),
+                        color = surfaceSubtle,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
@@ -1466,12 +1487,12 @@ fun VerificationBadgeScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(text = "Plan Selected:", fontSize = 13.sp, color = Color(0xFF65676B))
+                                Text(text = "Plan Selected:", fontSize = 13.sp, color = textSecondary)
                                 Text(
                                     text = purchasedPlan!!.title,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF050505)
+                                    color = textPrimary
                                 )
                             }
 
@@ -1479,12 +1500,12 @@ fun VerificationBadgeScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(text = "Price:", fontSize = 13.sp, color = Color(0xFF65676B))
+                                Text(text = "Price:", fontSize = 13.sp, color = textSecondary)
                                 Text(
                                     text = "BDT ${purchasedPlan!!.price.toInt()}",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = darkGreen
+                                    color = primaryGreen
                                 )
                             }
 
@@ -1492,12 +1513,12 @@ fun VerificationBadgeScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(text = "Valid Until:", fontSize = 13.sp, color = Color(0xFF65676B))
+                                Text(text = "Valid Until:", fontSize = 13.sp, color = textSecondary)
                                 Text(
                                     text = newExpiryDateString,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = darkGreen
+                                    color = primaryGreen
                                 )
                             }
                         }
@@ -1527,8 +1548,8 @@ fun VerificationBadgeScreen(
                         onClick = { showThankYouDialog = false },
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFE4E6EB),
-                            contentColor = Color(0xFF050505)
+                            containerColor = surfaceSubtle,
+                            contentColor = textPrimary
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1549,6 +1570,10 @@ private fun BenefitItem(
     title: String,
     description: String
 ) {
+    val isDarkMode = LocalIsDarkMode.current
+    val textPrimary = if (isDarkMode) Color(0xFFE4E6EB) else Color(0xFF050505)
+    val textSecondary = if (isDarkMode) Color(0xFFB0B3B8) else Color(0xFF65676B)
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Top
@@ -1575,13 +1600,13 @@ private fun BenefitItem(
                 text = title,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF050505)
+                color = textPrimary
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = description,
                 fontSize = 12.sp,
-                color = Color(0xFF65676B),
+                color = textSecondary,
                 lineHeight = 16.sp
             )
         }
@@ -1596,17 +1621,26 @@ private fun IdCardUploadBox(
     onRemove: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isDarkMode = LocalIsDarkMode.current
+    val textPrimary = if (isDarkMode) Color(0xFFE4E6EB) else Color(0xFF050505)
+    val textSecondary = if (isDarkMode) Color(0xFFB0B3B8) else Color(0xFF65676B)
+    val boxBg = if (uri != null) {
+        if (isDarkMode) Color(0xFF242526) else Color.White
+    } else {
+        if (isDarkMode) Color(0xFF242526) else Color(0xFFF7F8FA)
+    }
+
     Surface(
         modifier = modifier
             .height(130.dp)
             .border(
                 width = 1.dp,
-                color = if (uri != null) Color(0xFF00C853) else Color(0xFFB0B3B8),
+                color = if (uri != null) Color(0xFF00C853) else if (isDarkMode) Color(0xFF3A3B3C) else Color(0xFFB0B3B8),
                 shape = RoundedCornerShape(12.dp)
             )
             .clip(RoundedCornerShape(12.dp))
             .clickable { if (uri == null) onSelect() },
-        color = if (uri != null) Color.White else Color(0xFFF7F8FA)
+        color = boxBg
     ) {
         if (uri != null) {
             Box(modifier = Modifier.fillMaxSize()) {
@@ -1660,7 +1694,7 @@ private fun IdCardUploadBox(
             ) {
                 Surface(
                     shape = CircleShape,
-                    color = Color(0xFFE8F1FD),
+                    color = if (isDarkMode) Color(0xFF1877F2).copy(alpha = 0.2f) else Color(0xFFE8F1FD),
                     modifier = Modifier.size(36.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -1677,12 +1711,12 @@ private fun IdCardUploadBox(
                     text = label,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF050505)
+                    color = textPrimary
                 )
                 Text(
                     text = "Tap to upload",
                     fontSize = 10.sp,
-                    color = Color(0xFF65676B)
+                    color = textSecondary
                 )
             }
         }

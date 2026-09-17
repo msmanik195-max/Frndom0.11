@@ -8,6 +8,7 @@ import kotlinx.coroutines.delay
 import android.content.Context
 import android.util.Log
 import com.example.data.model.PostItem
+import com.example.data.model.PostReport
 import com.example.data.model.ReactionType
 import com.example.data.model.UserProfile
 import com.google.firebase.database.DataSnapshot
@@ -64,11 +65,15 @@ class PostRepository(private val context: Context) {
     private val _postsFlow = MutableStateFlow<List<PostItem>>(getLocalPosts())
     val postsFlow = _postsFlow.asStateFlow()
 
+    private val _reportsFlow = MutableStateFlow<List<PostReport>>(emptyList())
+    val reportsFlow = _reportsFlow.asStateFlow()
+
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing = _isRefreshing.asStateFlow()
 
     init {
         listenToFirebasePosts()
+        listenToPostReports()
     }
 
     private fun listenToFirebasePosts() {
@@ -940,19 +945,137 @@ class PostRepository(private val context: Context) {
         }
     }
 
-    fun reportPost(postId: String, reporterId: String, reason: String, details: String = "") {
+    private fun listenToPostReports() {
         try {
-            val reportMap = mapOf(
-                "id" to UUID.randomUUID().toString(),
-                "postId" to postId,
-                "reporterId" to reporterId,
-                "reason" to reason,
-                "details" to details,
-                "timestamp" to System.currentTimeMillis()
+            val reportsRef = FirebaseDatabase.getInstance().getReference("admin_post_reports")
+            reportsRef.addValueEventListener(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val list = mutableListOf<PostReport>()
+                    for (child in snapshot.children) {
+                        try {
+                            val key = child.key ?: ""
+                            val id = child.child("id").getValue(String::class.java) ?: key
+                            val postId = child.child("postId").getValue(String::class.java) ?: ""
+                            val reporterId = child.child("reporterId").getValue(String::class.java) ?: ""
+                            val reporterName = child.child("reporterName").getValue(String::class.java) ?: ""
+                            val reason = child.child("reason").getValue(String::class.java) ?: ""
+                            val details = child.child("details").getValue(String::class.java) ?: ""
+                            val timestamp = child.child("timestamp").getValue(Long::class.java) ?: 0L
+                            val status = child.child("status").getValue(String::class.java) ?: "pending"
+                            val postAuthorId = child.child("postAuthorId").getValue(String::class.java) ?: ""
+                            val postAuthorName = child.child("postAuthorName").getValue(String::class.java) ?: ""
+                            val postAuthorAvatarUrl = child.child("postAuthorAvatarUrl").getValue(String::class.java) ?: ""
+                            val postContent = child.child("postContent").getValue(String::class.java) ?: ""
+                            val postMediaType = child.child("postMediaType").getValue(String::class.java) ?: "text"
+                            val postMediaUrl = child.child("postMediaUrl").getValue(String::class.java) ?: ""
+                            val rawMediaUrls = child.child("postMediaUrls").value
+                            val postMediaUrls = (rawMediaUrls as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList()
+
+                            list.add(
+                                PostReport(
+                                    id = if (id.isNotBlank()) id else key,
+                                    postId = postId,
+                                    reporterId = reporterId,
+                                    reporterName = reporterName,
+                                    reason = reason,
+                                    details = details,
+                                    timestamp = timestamp,
+                                    status = status,
+                                    postAuthorId = postAuthorId,
+                                    postAuthorName = postAuthorName,
+                                    postAuthorAvatarUrl = postAuthorAvatarUrl,
+                                    postContent = postContent,
+                                    postMediaType = postMediaType,
+                                    postMediaUrl = postMediaUrl,
+                                    postMediaUrls = postMediaUrls
+                                )
+                            )
+                        } catch (e: Exception) {
+                            Log.e("PostRepository", "Error parsing report: ${e.message}")
+                        }
+                    }
+                    _reportsFlow.value = list.sortedByDescending { it.timestamp }
+                }
+
+                override fun onCancelled(error: DatabaseError) {
+                    Log.e("PostRepository", "Reports listener cancelled: ${error.message}")
+                }
+            })
+        } catch (e: Exception) {
+            Log.e("PostRepository", "Error setting up reports listener: ${e.message}")
+        }
+    }
+
+    fun reportPost(post: PostItem, reporterId: String, reporterName: String = "", reason: String, details: String = "") {
+        try {
+            val reportId = UUID.randomUUID().toString()
+            val report = PostReport(
+                id = reportId,
+                postId = post.id,
+                reporterId = reporterId,
+                reporterName = reporterName,
+                reason = reason,
+                details = details,
+                timestamp = System.currentTimeMillis(),
+                status = "pending",
+                postAuthorId = post.authorId,
+                postAuthorName = post.authorName,
+                postAuthorAvatarUrl = post.authorAvatarUrl,
+                postContent = post.content,
+                postMediaType = post.mediaType,
+                postMediaUrl = post.mediaUrl,
+                postMediaUrls = post.getAllMediaUrls()
             )
-            FirebaseDatabase.getInstance().getReference("admin_post_reports").push().setValue(reportMap)
+            val ref = FirebaseDatabase.getInstance().getReference("admin_post_reports")
+            ref.child(reportId).setValue(report.toMap())
         } catch (e: Exception) {
             Log.e("PostRepository", "Firebase reportPost error: ${e.message}")
+        }
+    }
+
+    fun reportPost(postId: String, reporterId: String, reason: String, details: String = "") {
+        val foundPost = _postsFlow.value.firstOrNull { it.id == postId }
+        if (foundPost != null) {
+            reportPost(foundPost, reporterId, "", reason, details)
+        } else {
+            try {
+                val reportId = UUID.randomUUID().toString()
+                val report = PostReport(
+                    id = reportId,
+                    postId = postId,
+                    reporterId = reporterId,
+                    reason = reason,
+                    details = details,
+                    timestamp = System.currentTimeMillis(),
+                    status = "pending"
+                )
+                FirebaseDatabase.getInstance().getReference("admin_post_reports").child(reportId).setValue(report.toMap())
+            } catch (e: Exception) {
+                Log.e("PostRepository", "Firebase reportPost error: ${e.message}")
+            }
+        }
+    }
+
+    fun dismissReport(reportId: String) {
+        try {
+            val ref = FirebaseDatabase.getInstance().getReference("admin_post_reports")
+            ref.child(reportId).removeValue()
+            _reportsFlow.value = _reportsFlow.value.filterNot { it.id == reportId }
+        } catch (e: Exception) {
+            Log.e("PostRepository", "Error dismissing report: ${e.message}")
+        }
+    }
+
+    fun deleteReportedPost(report: PostReport) {
+        try {
+            if (report.postId.isNotBlank()) {
+                deletePost(report.postId)
+            }
+            val ref = FirebaseDatabase.getInstance().getReference("admin_post_reports")
+            ref.child(report.id).removeValue()
+            _reportsFlow.value = _reportsFlow.value.filterNot { it.id == report.id }
+        } catch (e: Exception) {
+            Log.e("PostRepository", "Error deleting reported post: ${e.message}")
         }
     }
 }

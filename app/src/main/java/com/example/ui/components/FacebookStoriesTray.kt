@@ -1380,15 +1380,5 @@ fun ViewerRowItem(
 }
 
 private fun formatStoryTimeAgo(timestamp: Long): String {
-    val diff = (System.currentTimeMillis() - timestamp).coerceAtLeast(0)
-    val seconds = diff / 1000
-    val minutes = seconds / 60
-    val hours = minutes / 60
-    val days = hours / 24
-    return when {
-        seconds < 60 -> "Just now"
-        minutes < 60 -> "${minutes}m ago"
-        hours < 24 -> "${hours}h ago"
-        else -> "${days}d ago"
-    }
+    return com.example.util.formatPostTimestamp(timestamp)
 }

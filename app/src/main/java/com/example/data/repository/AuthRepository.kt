@@ -23,11 +23,16 @@ class AuthRepository(
     private fun ensureFirebaseInitialized() {
         try {
             if (FirebaseApp.getApps(context ?: com.google.firebase.FirebaseApp.getInstance().applicationContext).isEmpty()) {
+                val apiKey = com.example.BuildConfig.FIREBASE_API_KEY.takeIf { it.isNotBlank() && it != "dummy" } ?: "AIzaSyDIyVBiQKM9sFaOie1Mabvx6uWIq_5G2g4"
+                val appId = com.example.BuildConfig.FIREBASE_APP_ID.takeIf { it.isNotBlank() && it != "dummy" } ?: "1:811952393925:android:4755f7334040c07c702aac"
+                val projectId = com.example.BuildConfig.FIREBASE_PROJECT_ID.takeIf { it.isNotBlank() && it != "dummy" } ?: "frndom-871ec"
+                val databaseUrl = com.example.BuildConfig.FIREBASE_DATABASE_URL.takeIf { it.isNotBlank() && it != "dummy" } ?: "https://frndom-871ec-default-rtdb.firebaseio.com"
+
                 val options = com.google.firebase.FirebaseOptions.Builder()
-                    .setApiKey("AIzaSyDIyVBiQKM9sFaOie1Mabvx6uWIq_5G2g4")
-                    .setApplicationId("1:811952393925:android:4755f7334040c07c702aac")
-                    .setProjectId("frndom-871ec")
-                    .setDatabaseUrl("https://frndom-871ec-default-rtdb.firebaseio.com")
+                    .setApiKey(apiKey)
+                    .setApplicationId(appId)
+                    .setProjectId(projectId)
+                    .setDatabaseUrl(databaseUrl)
                     .setStorageBucket("frndom-871ec.firebasestorage.app")
                     .build()
                 if (context != null) {

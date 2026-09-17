@@ -46,6 +46,7 @@ import com.example.data.model.FeedSectionType
 import com.example.data.model.HomeFeedConfig
 import com.example.data.model.HomeFeedSection
 import com.example.data.repository.AdminRequestRepository
+import com.example.util.formatPostTimestamp
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.outlined.ThumbUp
@@ -148,10 +149,14 @@ fun HomeScreen(
     val adminRepo = remember { AdminRequestRepository.getInstance(context) }
     val homeFeedConfig by adminRepo.homeFeedConfigFlow.collectAsState()
     val userRepo = remember { UserRepository.getInstance(context) }
-    val allUsers: List<UserProfile> by userRepo.usersFlow.collectAsState(initial = emptyList())
+    val allUsers: List<UserProfile> by userRepo.getAllUsersFlow().collectAsState(initial = emptyList())
     val currentUserProfile: UserProfile? by userRepo.currentUserProfileFlow.collectAsState(initial = null)
     val effectiveUser = userProfile ?: currentUserProfile
     val dismissedSuggestions = remember { mutableStateListOf<String>() }
+
+    val activeSections = homeFeedConfig.sections.filter { it.enabled }
+    val isVideosSectionEnabled = activeSections.any { it.type == FeedSectionType.VIDEO_POSTS }
+    val isImagesSectionEnabled = activeSections.any { it.type == FeedSectionType.IMAGE_POSTS }
 
     val isFriendsOnly = homeFeedConfig.onlyFriendsPosts
     val effectiveStories = remember(stories, effectiveUser, isFriendsOnly) {
@@ -162,12 +167,27 @@ fun HomeScreen(
         }
     }
 
-    val feedPosts = remember(posts, effectiveUser, isFriendsOnly) {
+    val feedPosts = remember(posts, effectiveUser, isFriendsOnly, isVideosSectionEnabled) {
         val nonReels = posts.filter { it.mediaType != "reel" }
-        if (isFriendsOnly && effectiveUser != null) {
-            nonReels.filter { it.authorId == effectiveUser.uid || effectiveUser.friendsMap[it.authorId] == true }
+        val filtered = if (!isVideosSectionEnabled) {
+            nonReels.filter { post ->
+                val isVideo = post.mediaType.equals("video", ignoreCase = true) ||
+                        post.mediaType.equals("reel", ignoreCase = true) ||
+                        post.mediaUrl.endsWith(".mp4", ignoreCase = true) ||
+                        post.mediaUrl.endsWith(".mkv", ignoreCase = true) ||
+                        post.mediaUrl.endsWith(".mov", ignoreCase = true) ||
+                        post.mediaUrl.endsWith(".webm", ignoreCase = true) ||
+                        post.mediaUrl.contains("/videos/", ignoreCase = true) ||
+                        post.mediaUrl.contains("/reels/", ignoreCase = true)
+                !isVideo
+            }
         } else {
             nonReels
+        }
+        if (isFriendsOnly && effectiveUser != null) {
+            filtered.filter { it.authorId == effectiveUser.uid || effectiveUser.friendsMap[it.authorId] == true }
+        } else {
+            filtered
         }
     }
 
@@ -199,24 +219,28 @@ fun HomeScreen(
         ?: "U"
     val userId = userProfile?.uid ?: "user_id"
 
-    val activeSections = homeFeedConfig.sections.filter { it.enabled }
     val allImagePosts = remember(feedPosts) {
         feedPosts.filter { it.mediaType == "photo" || it.mediaUrls.isNotEmpty() || (it.mediaUrl.isNotBlank() && it.mediaType != "video" && it.mediaType != "reel") }
     }
-    val allVideoPosts = remember(feedPosts) {
-        feedPosts.filter { it.mediaType == "video" || it.mediaType == "reel" }
+    val allVideoPosts = remember(feedPosts, isVideosSectionEnabled) {
+        if (!isVideosSectionEnabled) emptyList()
+        else feedPosts.filter { it.mediaType == "video" || it.mediaUrl.endsWith(".mp4", ignoreCase = true) }
     }
     val allTextPosts = remember(feedPosts) {
         feedPosts.filter { it.mediaType == "text" || (it.mediaUrl.isBlank() && it.mediaUrls.isEmpty()) }
     }
-    val friendSuggestions = remember(allUsers, effectiveUser, dismissedSuggestions) {
+    val friendSuggestions = remember(allUsers, effectiveUser, userId, dismissedSuggestions) {
+        val myUid = effectiveUser?.uid?.ifBlank { userId } ?: userId
+        val myEmail = effectiveUser?.email?.trim()?.lowercase() ?: ""
         allUsers.filter { user: UserProfile ->
-            user.uid.isNotBlank() &&
-            user.uid != userId &&
-            effectiveUser?.friendsMap?.get(user.uid) != true &&
-            effectiveUser?.friendRequestsReceivedMap?.get(user.uid) != true &&
-            effectiveUser?.friendRequestsSentMap?.get(user.uid) != true &&
-            !dismissedSuggestions.contains(user.uid)
+            val uUid = user.uid.trim()
+            val uEmail = user.email.trim().lowercase()
+            uUid.isNotBlank() &&
+            uUid != myUid &&
+            uUid != userId &&
+            (myEmail.isBlank() || uEmail.isBlank() || uEmail != myEmail) &&
+            effectiveUser?.friendsMap?.get(uUid) != true &&
+            !dismissedSuggestions.contains(uUid)
         }
     }
 
@@ -870,7 +894,7 @@ fun PostCardItem(
                                     VerificationBadge(size = 14.dp, show = true)
                                 }
                                 Text(
-                                    text = " • Just now • ",
+                                    text = " • ${formatPostTimestamp(post.createdAt)} • ",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -898,7 +922,7 @@ fun PostCardItem(
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "Just now",
+                                    text = formatPostTimestamp(post.createdAt),
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

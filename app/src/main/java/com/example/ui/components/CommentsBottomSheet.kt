@@ -1,5 +1,7 @@
 package com.example.ui.components
 
+import com.example.util.formatPostTimestamp
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -579,7 +581,7 @@ fun CommentRow(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Just now", fontSize = 12.sp, color = subTextColor)
+                Text(formatPostTimestamp(comment.createdAt), fontSize = 12.sp, color = subTextColor)
                 Text(
                     text = "Like",
                     fontSize = 12.sp,
