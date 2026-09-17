@@ -195,7 +195,8 @@ fun HomeScreen(
     val autoPlayVideos by appSettingsRepository.autoPlayVideos.collectAsState()
     val adRepo = remember { AdvertisementRepository.getInstance(context) }
     val allAds by adRepo.advertisementsFlow.collectAsState()
-    val runningAds = remember(allAds) { allAds.filter { it.status == "RUNNING" } }
+    val adPlacementSettings by adRepo.adPlacementSettingsFlow.collectAsState()
+    val runningAds = remember(allAds) { allAds.filter { it.status == "RUNNING" || it.status == "APPROVED" } }
 
     val effectiveMediaUploadService = remember(mediaUploadService, storageRepository) {
         mediaUploadService ?: MediaUploadService(context, storageRepository ?: StorageRepository(context))
@@ -679,9 +680,11 @@ fun HomeScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // Facebook Sponsored Ad insertion after 1st post and every 3rd post
-                        if (runningAds.isNotEmpty() && (index == 0 || (index > 0 && index % 3 == 0))) {
-                            val adToShow = runningAds[(index / 3) % runningAds.size]
+                        // Sponsored Ad insertion based on Admin Advertisement Placement setting
+                        val homeInterval = adPlacementSettings.homePostInterval.coerceAtLeast(1)
+                        if (runningAds.isNotEmpty() && ((index + 1) % homeInterval == 0)) {
+                            val adIndex = ((index + 1) / homeInterval - 1) % runningAds.size
+                            val adToShow = runningAds[adIndex]
                             SponsoredAdFeedCard(
                                 ad = adToShow,
                                 onAdClick = { clickedAd ->
@@ -1577,27 +1580,38 @@ fun SponsoredAdFeedCard(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Ad Media Banner
+            // Ad Media Banner (Photo or Video)
             if (ad.mediaUrl.isNotBlank()) {
+                val isVideo = ad.mediaType == "video" || ad.mediaUrl.endsWith(".mp4", ignoreCase = true) || ad.mediaUrl.contains(".mp4?", ignoreCase = true)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(230.dp)
                         .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .clickable {
-                            onAdClick(ad)
-                            try {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ad.destinationUrl))
-                                context.startActivity(intent)
-                            } catch (_: Exception) {}
-                        }
                 ) {
-                    AsyncImage(
-                        model = ad.mediaUrl,
-                        contentDescription = "Sponsored Ad",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
+                    if (isVideo) {
+                        FrndomVideoPlayer(
+                            videoUrl = ad.mediaUrl,
+                            modifier = Modifier.fillMaxSize(),
+                            autoPlay = false,
+                            isLooping = true
+                        )
+                    } else {
+                        AsyncImage(
+                            model = ad.mediaUrl,
+                            contentDescription = "Sponsored Ad",
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clickable {
+                                    onAdClick(ad)
+                                    try {
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ad.destinationUrl))
+                                        context.startActivity(intent)
+                                    } catch (_: Exception) {}
+                                },
+                            contentScale = ContentScale.Crop
+                        )
+                    }
                 }
             }
 

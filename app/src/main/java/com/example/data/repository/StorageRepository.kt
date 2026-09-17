@@ -30,7 +30,7 @@ class StorageRepository(private val context: Context) {
 
     private val dbRef: DatabaseReference? by lazy {
         try {
-            FirebaseDatabase.getInstance().getReference("admin_storage_configs")
+            com.example.util.FirebaseDatabaseHelper.getInstance().getReference("admin_storage_configs")
         } catch (e: Exception) {
             Log.e("StorageRepository", "FirebaseDatabase not ready: ${e.message}")
             null

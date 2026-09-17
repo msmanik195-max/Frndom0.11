@@ -82,7 +82,7 @@ class UserRepository(private val context: Context) {
     private val dbRef: DatabaseReference? by lazy {
         try {
             if (FirebaseApp.getApps(context).isNotEmpty()) {
-                FirebaseDatabase.getInstance().getReference("users")
+                com.example.util.FirebaseDatabaseHelper.getInstance().getReference("users")
             } else {
                 null
             }
@@ -95,7 +95,7 @@ class UserRepository(private val context: Context) {
     private val verificationsDbRef: DatabaseReference? by lazy {
         try {
             if (FirebaseApp.getApps(context).isNotEmpty()) {
-                FirebaseDatabase.getInstance().getReference("admin_verifications")
+                com.example.util.FirebaseDatabaseHelper.getInstance().getReference("admin_verifications")
             } else {
                 null
             }

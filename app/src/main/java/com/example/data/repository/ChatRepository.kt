@@ -25,7 +25,7 @@ class ChatRepository(private val context: Context) {
     private val dbRef: DatabaseReference? by lazy {
         try {
             if (FirebaseApp.getApps(context).isNotEmpty()) {
-                FirebaseDatabase.getInstance().reference
+                com.example.util.FirebaseDatabaseHelper.getInstance().reference
             } else {
                 null
             }

@@ -73,6 +73,10 @@ data class UserProfile(
         return System.currentTimeMillis() <= verifiedUntil
     }
 
+    fun isPageAccount(): Boolean {
+        return uid.startsWith("page_profile_") || email.endsWith("@page.frndom.app")
+    }
+
     fun isUserOnline(): Boolean {
         if (isBlocked) return false
         if (isOnline) return true

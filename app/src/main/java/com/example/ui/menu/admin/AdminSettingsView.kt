@@ -32,7 +32,8 @@ import kotlinx.coroutines.launch
 fun AdminSettingsView(
     adminRepo: AdminRequestRepository,
     onBack: () -> Unit,
-    onFeedCustomizationClick: (() -> Unit)? = null
+    onFeedCustomizationClick: (() -> Unit)? = null,
+    onAdPlacementSettingsClick: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -871,6 +872,78 @@ fun AdminSettingsView(
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "Customize Home Feed",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            // SECTION 3.1: ADVERTISEMENT PLACEMENT SETTINGS
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = bgCard),
+                elevation = CardDefaults.cardElevation(2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xFF1877F2).copy(alpha = 0.12f),
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Campaign,
+                                    contentDescription = null,
+                                    tint = Color(0xFF1877F2),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Advertisement Placement",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = textPrimary
+                            )
+                            Text(
+                                text = "অ্যাডভার্টাইজমেন্ট প্লেসমেন্ট কন্ট্রোল",
+                                fontSize = 12.sp,
+                                color = textSecondary
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "হোম পেজে কতগুলো পোস্টের পর পর স্পনসর্ড অ্যাড শো করবে এবং কতটি ভিডিও পর পর শো করবে তা এই পেজ থেকে নির্দিষ্ট করে দেওয়া যাবে।",
+                        fontSize = 12.sp,
+                        color = textSecondary,
+                        lineHeight = 17.sp
+                    )
+
+                    if (onAdPlacementSettingsClick != null) {
+                        Button(
+                            onClick = onAdPlacementSettingsClick,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp)
+                                .testTag("open_ad_placement_from_settings_btn"),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1877F2))
+                        ) {
+                            Icon(imageVector = Icons.Default.Tune, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Configure Ad Placements",
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp

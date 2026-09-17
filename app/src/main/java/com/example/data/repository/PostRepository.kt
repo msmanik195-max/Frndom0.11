@@ -52,7 +52,7 @@ class PostRepository(private val context: Context) {
     private val dbRef: DatabaseReference? by lazy {
         try {
             if (com.google.firebase.FirebaseApp.getApps(context).isNotEmpty()) {
-                FirebaseDatabase.getInstance().getReference("posts")
+                com.example.util.FirebaseDatabaseHelper.getInstance().getReference("posts")
             } else {
                 null
             }
@@ -1076,6 +1076,17 @@ class PostRepository(private val context: Context) {
             _reportsFlow.value = _reportsFlow.value.filterNot { it.id == report.id }
         } catch (e: Exception) {
             Log.e("PostRepository", "Error deleting reported post: ${e.message}")
+        }
+    }
+
+    companion object {
+        @Volatile
+        private var instance: PostRepository? = null
+
+        fun getInstance(context: Context): PostRepository {
+            return instance ?: synchronized(this) {
+                instance ?: PostRepository(context.applicationContext).also { instance = it }
+            }
         }
     }
 }

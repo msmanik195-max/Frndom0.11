@@ -312,8 +312,10 @@ fun MenuScreen(
             )
         }
         MenuSubScreen.ADVERTISEMENT -> {
-            AdvertisementComingSoonView(
+            AdvertisementScreen(
+                currentUser = userProfile,
                 onBack = { currentSubScreen = MenuSubScreen.MAIN },
+                onNavigateToDeposit = { currentSubScreen = MenuSubScreen.DEPOSIT },
                 modifier = modifier
             )
         }
@@ -598,11 +600,11 @@ fun MenuScreen(
                             )
                         }
 
-                        // 9. Advertisement (Coming Soon)
+                        // 9. Advertisement (Campaigns & Promotions)
                         item {
                             FacebookMenuCard(
                                 title = "Advertisement",
-                                subtitle = "Coming Soon",
+                                subtitle = "Promote & Run Ads",
                                 icon = Icons.Default.Campaign,
                                 iconColor = Color(0xFF1877F2),
                                 iconBgColor = Color(0xFFE7F3FF),

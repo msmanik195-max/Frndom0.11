@@ -29,7 +29,7 @@ class MarketplaceRepository(private val context: Context) {
     private val dbRef: DatabaseReference? by lazy {
         try {
             if (FirebaseApp.getApps(context).isNotEmpty()) {
-                FirebaseDatabase.getInstance().reference.child("marketplace_items")
+                com.example.util.FirebaseDatabaseHelper.getInstance().reference.child("marketplace_items")
             } else {
                 null
             }

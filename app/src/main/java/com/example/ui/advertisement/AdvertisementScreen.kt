@@ -127,7 +127,7 @@ fun AdvertisementScreen(
                             color = textPrimary
                         )
                         Text(
-                            text = "Facebook Style Ad Center",
+                            text = "Sponsored Campaigns & Reach",
                             fontSize = 12.sp,
                             color = Color(0xFF1877F2)
                         )

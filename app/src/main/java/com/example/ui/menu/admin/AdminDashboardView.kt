@@ -138,6 +138,7 @@ enum class AdminActiveScreen {
     SUGGESTED_ITEMS,
     SETTINGS,
     AD_MANAGEMENT,
+    AD_PLACEMENT_SETTINGS,
     ADMIN_NOTIFICATIONS,
     REPORTED_POSTS,
     FILE_MANAGER
@@ -329,11 +330,18 @@ fun AdminDashboardView(
             AdminSettingsView(
                 adminRepo = adminRepo,
                 onBack = { currentAdminScreen = AdminActiveScreen.DASHBOARD_MAIN },
-                onFeedCustomizationClick = { currentAdminScreen = AdminActiveScreen.FEED_CUSTOMIZATION }
+                onFeedCustomizationClick = { currentAdminScreen = AdminActiveScreen.FEED_CUSTOMIZATION },
+                onAdPlacementSettingsClick = { currentAdminScreen = AdminActiveScreen.AD_PLACEMENT_SETTINGS }
             )
         }
         AdminActiveScreen.AD_MANAGEMENT -> {
             AdminAdvertisementManagementView(
+                onBack = { currentAdminScreen = AdminActiveScreen.DASHBOARD_MAIN },
+                modifier = modifier
+            )
+        }
+        AdminActiveScreen.AD_PLACEMENT_SETTINGS -> {
+            AdPlacementSettingsView(
                 onBack = { currentAdminScreen = AdminActiveScreen.DASHBOARD_MAIN },
                 modifier = modifier
             )
@@ -637,6 +645,52 @@ fun AdminDashboardView(
                                 scope.launch {
                                     drawerState.close()
                                     currentAdminScreen = AdminActiveScreen.MONETIZATION_REQUESTS
+                                }
+                            },
+                            colors = drawerItemColors,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+                        )
+
+                        // 5.4 Advertisement Requests
+                        NavigationDrawerItem(
+                            icon = { Icon(Icons.Default.Campaign, contentDescription = null, tint = Color(0xFF1877F2)) },
+                            label = { Text("Advertisement Requests", fontWeight = FontWeight.Medium) },
+                            badge = {
+                                if (pendingAdsCount > 0) {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = Color(0xFFE53935)
+                                    ) {
+                                        Text(
+                                            text = "$pendingAdsCount",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            },
+                            selected = currentAdminScreen == AdminActiveScreen.AD_MANAGEMENT,
+                            onClick = {
+                                scope.launch {
+                                    drawerState.close()
+                                    currentAdminScreen = AdminActiveScreen.AD_MANAGEMENT
+                                }
+                            },
+                            colors = drawerItemColors,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+                        )
+
+                        // 5.5 Advertisement Placement
+                        NavigationDrawerItem(
+                            icon = { Icon(Icons.Default.Settings, contentDescription = null, tint = Color(0xFF1877F2)) },
+                            label = { Text("Advertisement Placement", fontWeight = FontWeight.Medium) },
+                            selected = currentAdminScreen == AdminActiveScreen.AD_PLACEMENT_SETTINGS,
+                            onClick = {
+                                scope.launch {
+                                    drawerState.close()
+                                    currentAdminScreen = AdminActiveScreen.AD_PLACEMENT_SETTINGS
                                 }
                             },
                             colors = drawerItemColors,
@@ -1429,6 +1483,33 @@ fun AdminDashboardView(
                                 iconTint = Color(0xFFE65100),
                                 badgeAlert = pendingMonetizationsCount > 0,
                                 onClick = { currentAdminScreen = AdminActiveScreen.MONETIZATION_REQUESTS }
+                            )
+                        }
+
+                        // 15. Advertisement Requests
+                        item {
+                            AdminMetricCard(
+                                title = "Ad Requests",
+                                count = "$pendingAdsCount",
+                                subtitle = "$runningAdsCount running ads",
+                                icon = Icons.Default.Campaign,
+                                iconBg = Color(0xFFE7F3FF),
+                                iconTint = Color(0xFF1877F2),
+                                badgeAlert = pendingAdsCount > 0,
+                                onClick = { currentAdminScreen = AdminActiveScreen.AD_MANAGEMENT }
+                            )
+                        }
+
+                        // 16. Advertisement Placement
+                        item {
+                            AdminMetricCard(
+                                title = "Ad Placement",
+                                count = "Active",
+                                subtitle = "Feed & Reels intervals",
+                                icon = Icons.Default.Settings,
+                                iconBg = Color(0xFFE8F5E9),
+                                iconTint = Color(0xFF2E7D32),
+                                onClick = { currentAdminScreen = AdminActiveScreen.AD_PLACEMENT_SETTINGS }
                             )
                         }
 

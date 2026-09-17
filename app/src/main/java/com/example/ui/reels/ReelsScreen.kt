@@ -61,9 +61,18 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.material.icons.filled.Launch
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.OpenInNew
+import com.example.data.model.AdvertisementItem
+import com.example.data.repository.AdvertisementRepository
+import com.example.data.model.AdPlacementSettings
 import com.example.data.model.PostItem
 import com.example.data.model.ReactionType
 import com.example.data.model.UserProfile
@@ -98,6 +107,31 @@ fun ReelsScreen(
     val reels = remember(posts) { posts.filter { it.mediaType == "reel" || it.mediaType == "video" } }
     val userId = userProfile?.uid ?: "user_id"
 
+    val adRepo = remember { AdvertisementRepository.getInstance(context) }
+    val allAds by adRepo.advertisementsFlow.collectAsState()
+    val adPlacementSettings by adRepo.adPlacementSettingsFlow.collectAsState()
+    val runningVideoAds = remember(allAds) {
+        allAds.filter { (it.status == "RUNNING" || it.status == "APPROVED") && (it.mediaType == "video" || it.mediaUrl.endsWith(".mp4", ignoreCase = true) || it.mediaUrl.contains(".mp4?", ignoreCase = true)) }
+    }
+
+    val reelPageItems = remember(reels, runningVideoAds, adPlacementSettings) {
+        if (runningVideoAds.isEmpty() || reels.isEmpty()) {
+            reels.map { ReelPageItem.Post(it) }
+        } else {
+            val interval = adPlacementSettings.reelsVideoInterval.coerceAtLeast(1)
+            val list = mutableListOf<ReelPageItem>()
+            var adIdx = 0
+            reels.forEachIndexed { index, post ->
+                list.add(ReelPageItem.Post(post))
+                if ((index + 1) % interval == 0) {
+                    list.add(ReelPageItem.Ad(runningVideoAds[adIdx % runningVideoAds.size]))
+                    adIdx++
+                }
+            }
+            list
+        }
+    }
+
     var showCommentsSheet by remember { mutableStateOf<PostItem?>(null) }
     var selectedReelForOptions by remember { mutableStateOf<PostItem?>(null) }
     var editingReel by remember { mutableStateOf<PostItem?>(null) }
@@ -108,7 +142,7 @@ fun ReelsScreen(
             .background(Color.Black)
             .testTag("reels_screen")
     ) {
-        if (reels.isEmpty()) {
+        if (reelPageItems.isEmpty()) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -162,42 +196,75 @@ fun ReelsScreen(
                 }
             }
         } else {
-            val pagerState = rememberPagerState(pageCount = { reels.size })
+            val pagerState = rememberPagerState(pageCount = { reelPageItems.size })
 
             VerticalPager(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize()
             ) { page ->
-                val reel = reels[page]
                 val isCurrentPage = (page == pagerState.currentPage)
-                androidx.compose.runtime.LaunchedEffect(reel.id, userId, isCurrentPage) {
-                    if (isCurrentPage) {
-                        if (userId.isNotBlank()) {
-                            postRepository.recordPostView(reel.id, userId)
+                when (val item = reelPageItems[page]) {
+                    is ReelPageItem.Post -> {
+                        val reel = item.post
+                        androidx.compose.runtime.LaunchedEffect(reel.id, userId, isCurrentPage) {
+                            if (isCurrentPage) {
+                                if (userId.isNotBlank()) {
+                                    postRepository.recordPostView(reel.id, userId)
+                                }
+                                com.example.data.repository.WatchHistoryRepository.getInstance(context).recordHistory(reel, userId)
+                            }
                         }
-                        com.example.data.repository.WatchHistoryRepository.getInstance(context).recordHistory(reel, userId)
+                        ReelVideoItem(
+                            reel = reel,
+                            currentUserId = userId,
+                            currentUserProfile = userProfile,
+                            isActive = isCurrentPage,
+                            onDoubleTapLike = {
+                                postRepository.setReaction(reel.id, userId, ReactionType.LOVE)
+                            },
+                            onLikeClick = { postRepository.toggleLike(reel.id, userId) },
+                            onCommentClick = {
+                                showCommentsSheet = reel
+                            },
+                            onOptionsClick = {
+                                selectedReelForOptions = reel
+                            },
+                            onShareClick = {
+                                postRepository.incrementShare(reel.id)
+                                onShareClick(reel)
+                            }
+                        )
+                    }
+                    is ReelPageItem.Ad -> {
+                        val ad = item.ad
+                        androidx.compose.runtime.LaunchedEffect(ad.id, isCurrentPage) {
+                            if (isCurrentPage) {
+                                adRepo.recordImpression(ad.id)
+                            }
+                        }
+                        SponsoredReelVideoItem(
+                            ad = ad,
+                            isActive = isCurrentPage,
+                            onAdClick = {
+                                adRepo.recordClick(ad.id)
+                                try {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ad.destinationUrl))
+                                    context.startActivity(intent)
+                                } catch (_: Exception) {}
+                            },
+                            onShareClick = {
+                                try {
+                                    val sendIntent = Intent().apply {
+                                        action = Intent.ACTION_SEND
+                                        putExtra(Intent.EXTRA_TEXT, "${ad.headline}\n${ad.destinationUrl}")
+                                        type = "text/plain"
+                                    }
+                                    context.startActivity(Intent.createChooser(sendIntent, "Share Ad"))
+                                } catch (_: Exception) {}
+                            }
+                        )
                     }
                 }
-                ReelVideoItem(
-                    reel = reel,
-                    currentUserId = userId,
-                    currentUserProfile = userProfile,
-                    isActive = isCurrentPage,
-                    onDoubleTapLike = {
-                        postRepository.setReaction(reel.id, userId, ReactionType.LOVE)
-                    },
-                    onLikeClick = { postRepository.toggleLike(reel.id, userId) },
-                    onCommentClick = {
-                        showCommentsSheet = reel
-                    },
-                    onOptionsClick = {
-                        selectedReelForOptions = reel
-                    },
-                    onShareClick = {
-                        postRepository.incrementShare(reel.id)
-                        onShareClick(reel)
-                    }
-                )
             }
         }
 
@@ -631,6 +698,254 @@ private fun ReelVideoItem(
                     fontSize = 12.sp,
                     color = Color.White.copy(alpha = 0.85f)
                 )
+            }
+        }
+    }
+}
+
+sealed class ReelPageItem {
+    data class Post(val post: PostItem) : ReelPageItem()
+    data class Ad(val ad: AdvertisementItem) : ReelPageItem()
+}
+
+@Composable
+private fun SponsoredReelVideoItem(
+    ad: AdvertisementItem,
+    isActive: Boolean = true,
+    onAdClick: () -> Unit,
+    onShareClick: () -> Unit
+) {
+    val authorInitial = ad.userName.firstOrNull()?.uppercase() ?: "A"
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .testTag("sponsored_reel_${ad.id}")
+    ) {
+        // Video Player
+        if (ad.mediaUrl.isNotBlank()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black),
+                contentAlignment = Alignment.Center
+            ) {
+                FrndomVideoPlayer(
+                    videoUrl = ad.mediaUrl,
+                    modifier = Modifier.fillMaxSize(),
+                    autoPlay = isActive,
+                    isLooping = true
+                )
+            }
+        } else {
+            // Fallback gradient for sponsored post
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color(0xFF1877F2),
+                                Color(0xFF0D47A1),
+                                Color(0xFF001E3C)
+                            )
+                        )
+                    )
+            )
+        }
+
+        // Bottom gradient scrim
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(280.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.9f)
+                        )
+                    )
+                )
+        )
+
+        // Right Action Bar (CTA, Share)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 28.dp)
+        ) {
+            // Open Destination Icon
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .clickable(onClick = onAdClick)
+                    .testTag("sponsored_reel_open_${ad.id}")
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0xFF1877F2),
+                    modifier = Modifier.size(44.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.OpenInNew,
+                            contentDescription = "Visit",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Visit",
+                    fontSize = 11.sp,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            // Share Ad
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .clickable(onClick = onShareClick)
+                    .testTag("sponsored_reel_share_${ad.id}")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Share,
+                    contentDescription = "Share",
+                    tint = Color.White,
+                    modifier = Modifier.size(30.dp)
+                )
+                Text(
+                    text = "Share",
+                    fontSize = 12.sp,
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+
+        // Bottom Left Creator Info & CTA
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth(0.78f)
+                .padding(start = 16.dp, bottom = 28.dp)
+        ) {
+            // Profile / Page Info + Sponsored Tag
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    modifier = Modifier.size(40.dp),
+                    shape = CircleShape,
+                    color = Color(0xFF1877F2)
+                ) {
+                    if (ad.userAvatar.isNotBlank()) {
+                        AsyncImage(
+                            model = ad.userAvatar,
+                            contentDescription = ad.userName,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = authorInitial,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Column {
+                    Text(
+                        text = ad.userName,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "Sponsored",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFF80D8FF)
+                        )
+                        Text(
+                            text = " • ",
+                            fontSize = 11.sp,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                        Icon(
+                            imageVector = Icons.Default.Public,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.7f),
+                            modifier = Modifier.size(11.dp)
+                        )
+                    }
+                }
+            }
+
+            if (ad.headline.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = ad.headline,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            if (ad.description.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = ad.description,
+                    fontSize = 13.sp,
+                    color = Color.White.copy(alpha = 0.9f),
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 18.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Prominent Call to Action Button
+            Button(
+                onClick = onAdClick,
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1877F2)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("sponsored_reel_cta_${ad.id}")
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = ad.callToAction.ifBlank { "Learn More" },
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.Default.Launch,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
     }

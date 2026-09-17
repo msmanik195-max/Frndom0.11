@@ -373,7 +373,7 @@ fun AdminFeedCustomizationView(
                 ) {
                     Icon(Icons.Default.RestartAlt, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Reset to Facebook Default Preset", fontWeight = FontWeight.SemiBold)
+                    Text("Reset to Default Layout Preset", fontWeight = FontWeight.SemiBold)
                 }
                 Spacer(modifier = Modifier.height(48.dp))
             }

@@ -22,7 +22,7 @@ class VerificationPlanRepository private constructor(private val context: Contex
     private val dbRef: DatabaseReference? by lazy {
         try {
             if (com.google.firebase.FirebaseApp.getApps(context).isNotEmpty()) {
-                FirebaseDatabase.getInstance().getReference("verification_packages")
+                com.example.util.FirebaseDatabaseHelper.getInstance().getReference("verification_packages")
             } else {
                 null
             }

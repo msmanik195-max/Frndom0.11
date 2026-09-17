@@ -22,7 +22,7 @@ class NotificationRepository(private val context: Context) {
     private val dbRef: DatabaseReference? by lazy {
         try {
             if (com.google.firebase.FirebaseApp.getApps(context).isNotEmpty()) {
-                FirebaseDatabase.getInstance().getReference("notifications")
+                com.example.util.FirebaseDatabaseHelper.getInstance().getReference("notifications")
             } else {
                 null
             }

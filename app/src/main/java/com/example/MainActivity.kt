@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.TextToolbarStatus
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.data.repository.AdminRequestRepository
+import com.example.ui.admin.StandaloneAdminApp
 import com.example.ui.auth.AuthScreen
 import com.example.ui.auth.AuthViewModel
 import com.example.ui.login.LoginScreen
@@ -141,6 +142,15 @@ fun FrndomApp(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val isStandaloneAdminApp = remember(context.packageName) {
+        context.packageName.equals("com.Flikata.admin", ignoreCase = true)
+    }
+
+    if (isStandaloneAdminApp) {
+        StandaloneAdminApp(modifier = modifier)
+        return
+    }
+
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val adminRepo = remember { AdminRequestRepository.getInstance(context) }
     val maintenanceConfig by adminRepo.maintenanceConfigFlow.collectAsStateWithLifecycle()

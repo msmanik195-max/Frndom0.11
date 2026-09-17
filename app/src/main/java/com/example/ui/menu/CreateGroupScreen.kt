@@ -118,13 +118,86 @@ fun CreateGroupScreen(
     val adminRepo = remember { AdminRequestRepository.getInstance(context) }
     val appSettings by adminRepo.appSettingsFlow.collectAsState()
 
+    val isPageAccountActive = !isEditMode && userProfile?.isPageAccount() == true
     val groupCreationValidation = remember(appSettings, isEditMode) {
         if (isEditMode) ContentValidationResult.Allowed else contentLimitManager.validateGroupCreation()
     }
     val isGroupCreationBlocked = groupCreationValidation is ContentValidationResult.Blocked
     val groupCreationBlockReason = (groupCreationValidation as? ContentValidationResult.Blocked)?.reason ?: ""
 
-    val isValid = groupName.trim().length >= 2 && !isSubmitting && !isGroupCreationBlocked
+    val isValid = groupName.trim().length >= 2 && !isSubmitting && !isGroupCreationBlocked && !isPageAccountActive
+
+    if (isPageAccountActive) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(bgScreen),
+            contentAlignment = Alignment.Center
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(0.9f)
+                    .padding(24.dp),
+                colors = CardDefaults.cardColors(containerColor = bgCard),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = Color(0xFF1877F2).copy(alpha = 0.12f),
+                        modifier = Modifier.size(72.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = null,
+                                tint = Color(0xFF1877F2),
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Personal Profile Required",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = textPrimary,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "You are currently operating as a Page. Groups can only be created under your personal user profile. Please switch back to your personal profile ID to create a group.",
+                        fontSize = 14.sp,
+                        color = textSecondary,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        lineHeight = 20.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Button(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1877F2))
+                    ) {
+                        Text("Go Back", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    }
+                }
+            }
+        }
+        return
+    }
 
     Box(
         modifier = modifier

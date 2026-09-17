@@ -141,7 +141,6 @@ fun GroupDetailView(
     var uploadedMediaUrls by remember { mutableStateOf<List<String>>(emptyList()) }
     var selectedMediaUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var isUploadingMedia by remember { mutableStateOf(false) }
-    var showMediaUrlDialog by remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
     val uploadService = mediaUploadService ?: remember { MediaUploadService(context, com.example.data.repository.StorageRepository(context)) }
@@ -151,6 +150,7 @@ fun GroupDetailView(
     ) { uris ->
         if (uris.isNotEmpty()) {
             selectedMediaUris = uris
+            showCreatePostSheet = true
             coroutineScope.launch {
                 isUploadingMedia = true
                 try {
@@ -159,8 +159,8 @@ fun GroupDetailView(
                         res.getOrNull()
                     }
                     if (uploaded.isNotEmpty()) {
-                        uploadedMediaUrls = uploaded
-                        mediaUrlInput = uploaded.first()
+                        uploadedMediaUrls = (uploadedMediaUrls + uploaded).distinct()
+                        mediaUrlInput = uploadedMediaUrls.firstOrNull().orEmpty()
                     }
                 } catch (e: Exception) {
                     Toast.makeText(context, "Failed to upload image: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -625,14 +625,16 @@ fun GroupDetailView(
 
                                         IconButton(onClick = {
                                             if (isJoined || isCreator) {
-                                                showMediaUrlDialog = true
+                                                photoPickerLauncher.launch(
+                                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                                )
                                             } else {
                                                 Toast.makeText(context, "Join this group to share photos!", Toast.LENGTH_SHORT).show()
                                             }
                                         }) {
                                             Icon(
                                                 imageVector = Icons.Default.Image,
-                                                contentDescription = "Photo/Video",
+                                                contentDescription = "Upload Photos",
                                                 tint = Color(0xFF45BD62),
                                                 modifier = Modifier.size(24.dp)
                                             )
@@ -1104,7 +1106,7 @@ fun GroupDetailView(
                 OutlinedTextField(
                     value = postText,
                     onValueChange = { postText = it },
-                    placeholder = { Text("What's on your mind?", color = textSecondary) },
+                    placeholder = { Text("Write a caption or thoughts...", color = textSecondary) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(120.dp),
@@ -1175,105 +1177,38 @@ fun GroupDetailView(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Button(
+                    onClick = {
+                        photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isDarkMode) Color(0xFF263951) else Color(0xFFEBF5FF),
+                        contentColor = Color(0xFF1877F2)
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(46.dp)
                 ) {
-                    Button(
-                        onClick = {
-                            photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                        },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = badgeBg,
-                            contentColor = Color(0xFF1877F2)
-                        ),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.AddPhotoAlternate,
-                            contentDescription = null,
-                            tint = Color(0xFF1877F2),
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Photo/Video",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                    }
-
-                    Button(
-                        onClick = { showMediaUrlDialog = true },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = buttonSecondaryBg,
-                            contentColor = buttonSecondaryText
-                        ),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Image,
-                            contentDescription = null,
-                            tint = Color(0xFF45BD62),
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Paste URL",
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 13.sp
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Default.AddPhotoAlternate,
+                        contentDescription = "Upload Photos",
+                        tint = Color(0xFF1877F2),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (uploadedMediaUrls.isEmpty()) "Add Photos from Gallery" else "Add More Photos",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
             }
         }
-    }
-
-    if (showMediaUrlDialog) {
-        var tempUrl by remember { mutableStateOf(mediaUrlInput) }
-        AlertDialog(
-            onDismissRequest = { showMediaUrlDialog = false },
-            containerColor = bgCard,
-            title = { Text("Attach Photo URL", fontWeight = FontWeight.Bold, color = textPrimary) },
-            text = {
-                OutlinedTextField(
-                    value = tempUrl,
-                    onValueChange = { tempUrl = it },
-                    label = { Text("Image URL") },
-                    placeholder = { Text("https://example.com/photo.jpg") },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = textPrimary,
-                        unfocusedTextColor = textPrimary,
-                        focusedContainerColor = inputBg,
-                        unfocusedContainerColor = inputBg
-                    )
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        mediaUrlInput = tempUrl.trim()
-                        showMediaUrlDialog = false
-                        showCreatePostSheet = true
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1877F2))
-                ) {
-                    Text("Attach")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showMediaUrlDialog = false }) {
-                    Text("Cancel", color = textSecondary)
-                }
-            }
-        )
     }
 
     // Group Options Bottom Sheet

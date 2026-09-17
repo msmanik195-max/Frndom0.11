@@ -1,5 +1,6 @@
 package com.example.ui.menu
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material3.Button
@@ -122,6 +124,7 @@ fun GroupsView(
     }
 
     val currentUid = userProfile?.uid ?: ""
+    val isPageProfile = userProfile?.isPageAccount() == true
     val userGroups = groups.filter { it.creatorId == currentUid || joinedGroups[it.id] == true || it.creatorId.isBlank() }
     val displayedGroups = if (selectedTab == 1) userGroups else groups
 
@@ -155,9 +158,21 @@ fun GroupsView(
                 }
 
                 Button(
-                    onClick = { showCreateScreen = true },
+                    onClick = {
+                        if (isPageProfile) {
+                            Toast.makeText(
+                                context,
+                                "Groups can only be created under a personal profile. Please switch back to your personal profile account.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        } else {
+                            showCreateScreen = true
+                        }
+                    },
                     shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1877F2)),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isPageProfile) Color(0xFF71767B) else Color(0xFF1877F2)
+                    ),
                     modifier = Modifier.height(36.dp)
                 ) {
                     Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
@@ -196,6 +211,37 @@ fun GroupsView(
             }
 
             Divider(thickness = 0.5.dp, color = dividerColor)
+
+            if (isPageProfile) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isDarkMode) Color(0xFF332B1A) else Color(0xFFFFF8E1)
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = Color(0xFFF57C00),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Active as Page: Groups can only be created from your personal profile. Please switch back to your personal profile to create new groups.",
+                            fontSize = 12.sp,
+                            color = if (isDarkMode) Color(0xFFFFD54F) else Color(0xFF5D4037),
+                            lineHeight = 17.sp
+                        )
+                    }
+                }
+            }
 
             if (displayedGroups.isEmpty()) {
                 Column(
@@ -244,9 +290,21 @@ fun GroupsView(
                     Spacer(modifier = Modifier.height(20.dp))
 
                     Button(
-                        onClick = { showCreateScreen = true },
+                        onClick = {
+                            if (isPageProfile) {
+                                Toast.makeText(
+                                    context,
+                                    "Groups can only be created under a personal profile. Please switch back to your personal profile account.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            } else {
+                                showCreateScreen = true
+                            }
+                        },
                         shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1877F2))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isPageProfile) Color(0xFF71767B) else Color(0xFF1877F2)
+                        )
                     ) {
                         Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White)
                         Spacer(modifier = Modifier.width(6.dp))

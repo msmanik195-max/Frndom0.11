@@ -1,6 +1,10 @@
 package com.example.ui.advertisement
 
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -31,9 +35,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.model.AdvertisementItem
+import com.example.data.model.PageItem
 import com.example.data.model.UserProfile
 import com.example.data.repository.AdvertisementRepository
 import com.example.data.repository.AppSettingsRepository
+import com.example.data.repository.GroupPageRepository
+import com.example.data.repository.PostRepository
 import com.example.data.repository.WalletRepository
 import java.util.Locale
 
@@ -50,23 +57,56 @@ fun CreateAdScreen(
     val walletRepo = remember { WalletRepository.getInstance(context) }
     val adRepo = remember { AdvertisementRepository.getInstance(context) }
     val appSettingsRepo = remember { AppSettingsRepository.getInstance(context) }
+    val groupPageRepo = remember { GroupPageRepository.getInstance(context) }
+    val postRepo = remember { PostRepository.getInstance(context) }
     val isDarkMode by appSettingsRepo.isDarkMode.collectAsState()
 
     val walletBalance by walletRepo.balanceFlow.collectAsState()
+    val allPages by groupPageRepo.pagesFlow.collectAsState()
+    val myPages = remember(allPages, currentUser) {
+        val uid = currentUser?.uid.orEmpty()
+        allPages.filter { it.creatorId == uid }
+    }
 
     val userName = currentUser?.fullName.orEmpty().ifBlank {
         "${currentUser?.firstName} ${currentUser?.lastName}".trim()
-    }.ifBlank { "Frndom Advertiser" }
+    }.ifBlank { "Advertiser" }
     val userEmail = currentUser?.email.orEmpty()
     val userPhone = currentUser?.phoneNumber.orEmpty().ifBlank { currentUser?.contactPhone.orEmpty() }
     val userAvatar = currentUser?.profilePictureUrl.orEmpty()
+
+    // Identity Selection: "PROFILE" vs "PAGE"
+    var selectedPostType by remember { mutableStateOf("PROFILE") }
+    var selectedPage by remember { mutableStateOf<PageItem?>(null) }
+
+    // Media Type: "photo" or "video"
+    var selectedMediaType by remember { mutableStateOf("photo") }
+    var mediaUrl by remember { mutableStateOf("") }
+
+    // Media Pickers using zero-permission photo/video picker
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            mediaUrl = uri.toString()
+            selectedMediaType = "photo"
+        }
+    }
+
+    val videoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            mediaUrl = uri.toString()
+            selectedMediaType = "video"
+        }
+    }
 
     // Form fields
     var campaignName by remember { mutableStateOf("") }
     var selectedGoal by remember { mutableStateOf("Website Visits") }
     var headline by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
-    var mediaUrl by remember { mutableStateOf("") }
     var destinationUrl by remember { mutableStateOf("https://") }
     var selectedCta by remember { mutableStateOf("Learn More") }
 
@@ -121,7 +161,7 @@ fun CreateAdScreen(
                             color = textPrimary
                         )
                         Text(
-                            text = "Meta / Facebook Style Ad Placement",
+                            text = "Sponsored Feeds & Reels Placement",
                             fontSize = 12.sp,
                             color = Color(0xFF1877F2)
                         )
@@ -325,12 +365,82 @@ fun CreateAdScreen(
                         Icon(imageVector = Icons.Default.Edit, contentDescription = null, tint = Color(0xFFE65100), modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "2. Ad Creative",
+                            text = "2. Ad Identity & Creative",
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp,
                             color = textPrimary
                         )
                     }
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Promote As: Profile or Page
+                    Text(
+                        text = "Promote As (Identity)",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = textPrimary
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        FilterChip(
+                            selected = selectedPostType == "PROFILE",
+                            onClick = {
+                                selectedPostType = "PROFILE"
+                                selectedPage = null
+                            },
+                            label = { Text("Personal Profile ($userName)", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFF1877F2),
+                                selectedLabelColor = Color.White,
+                                selectedLeadingIconColor = Color.White
+                            )
+                        )
+                        if (myPages.isNotEmpty()) {
+                            FilterChip(
+                                selected = selectedPostType == "PAGE",
+                                onClick = {
+                                    selectedPostType = "PAGE"
+                                    if (selectedPage == null) selectedPage = myPages.firstOrNull()
+                                },
+                                label = { Text("Page", maxLines = 1) },
+                                leadingIcon = { Icon(Icons.Default.Flag, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Color(0xFF1877F2),
+                                    selectedLabelColor = Color.White,
+                                    selectedLeadingIconColor = Color.White
+                                )
+                            )
+                        }
+                    }
+
+                    if (selectedPostType == "PAGE" && myPages.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Select Page to Run Ad:",
+                            fontSize = 12.sp,
+                            color = textSecondary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(myPages) { page ->
+                                val isPageSelected = selectedPage?.id == page.id
+                                FilterChip(
+                                    selected = isPageSelected,
+                                    onClick = { selectedPage = page },
+                                    label = { Text(page.name) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = Color(0xFF008937),
+                                        selectedLabelColor = Color.White
+                                    )
+                                )
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(14.dp))
 
                     // Campaign Name
@@ -369,19 +479,85 @@ fun CreateAdScreen(
                             .testTag("input_description"),
                         minLines = 3
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                    // Media / Banner Image URL
+                    // Media Format Selection: Photo vs Video
                     Text(
-                        text = "Banner / Media Image URL",
+                        text = "Ad Media Format",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = textPrimary
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        FilterChip(
+                            selected = selectedMediaType == "photo",
+                            onClick = { selectedMediaType = "photo" },
+                            label = { Text("Photo Ad") },
+                            leadingIcon = { Icon(Icons.Default.Photo, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFF1877F2),
+                                selectedLabelColor = Color.White,
+                                selectedLeadingIconColor = Color.White
+                            )
+                        )
+                        FilterChip(
+                            selected = selectedMediaType == "video",
+                            onClick = { selectedMediaType = "video" },
+                            label = { Text("Video Ad (Reels & Feed)") },
+                            leadingIcon = { Icon(Icons.Default.Videocam, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFFE65100),
+                                selectedLabelColor = Color.White,
+                                selectedLeadingIconColor = Color.White
+                            )
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Media Picker Button
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (selectedMediaType == "photo") {
+                            OutlinedButton(
+                                onClick = {
+                                    photoPickerLauncher.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                },
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Choose Photo from Gallery", fontSize = 13.sp)
+                            }
+                        } else {
+                            OutlinedButton(
+                                onClick = {
+                                    videoPickerLauncher.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                                    )
+                                },
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(Icons.Default.VideoCall, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Choose Video from Gallery", fontSize = 13.sp)
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Media / Banner Image URL
                     OutlinedTextField(
                         value = mediaUrl,
                         onValueChange = { mediaUrl = it },
+                        label = { Text(if (selectedMediaType == "video") "Video URL (or selected above)" else "Photo URL (or selected above)") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("input_media_url"),
@@ -395,7 +571,7 @@ fun CreateAdScreen(
                         value = destinationUrl,
                         onValueChange = { destinationUrl = it },
                         label = { Text("Destination URL (Website or Page Link)") },
-                        placeholder = { Text("https://yourwebsite.com or Facebook Page link") },
+                        placeholder = { Text("https://yourwebsite.com or page link") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("input_destination_url"),
@@ -431,7 +607,7 @@ fun CreateAdScreen(
                 }
             }
 
-            // 3. Live Facebook Feed Mockup Preview
+            // 3. Live Feed Ad Mockup Preview
             Card(
                 shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = cardBg),
@@ -451,7 +627,7 @@ fun CreateAdScreen(
                     }
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Facebook Ad Card Mockup
+                    // Feed Ad Card Mockup
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = if (isDarkMode) Color(0xFF1C1E21) else Color(0xFFFAFAFA),
@@ -460,15 +636,19 @@ fun CreateAdScreen(
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             // Header: Avatar, Name, Sponsored
+                            val activePage = selectedPage
+                            val previewName = if (selectedPostType == "PAGE" && activePage != null) activePage.name else userName
+                            val previewAvatar = if (selectedPostType == "PAGE" && activePage != null) activePage.avatarUrl else userAvatar
+
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Surface(
                                     shape = CircleShape,
                                     color = Color(0xFF1877F2),
                                     modifier = Modifier.size(36.dp)
                                 ) {
-                                    if (userAvatar.isNotBlank()) {
+                                    if (previewAvatar.isNotBlank()) {
                                         AsyncImage(
-                                            model = userAvatar,
+                                            model = previewAvatar,
                                             contentDescription = null,
                                             contentScale = ContentScale.Crop,
                                             modifier = Modifier.fillMaxSize()
@@ -476,7 +656,7 @@ fun CreateAdScreen(
                                     } else {
                                         Box(contentAlignment = Alignment.Center) {
                                             Text(
-                                                text = userName.firstOrNull()?.uppercase() ?: "A",
+                                                text = previewName.firstOrNull()?.uppercase() ?: "A",
                                                 color = Color.White,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 16.sp
@@ -487,7 +667,7 @@ fun CreateAdScreen(
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Text(
-                                        text = userName,
+                                        text = previewName,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp,
                                         color = textPrimary
@@ -519,20 +699,60 @@ fun CreateAdScreen(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            // Ad Banner Image
+                            // Ad Banner Image / Video Preview
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
+                                color = Color.Black,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(180.dp)
                                     .clip(RoundedCornerShape(8.dp))
                             ) {
-                                AsyncImage(
-                                    model = mediaUrl,
-                                    contentDescription = "Ad Creative",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
+                                Box(contentAlignment = Alignment.Center) {
+                                    if (mediaUrl.isNotBlank()) {
+                                        AsyncImage(
+                                            model = mediaUrl,
+                                            contentDescription = "Ad Creative",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    } else {
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = if (selectedMediaType == "video") Icons.Default.Videocam else Icons.Default.Image,
+                                                contentDescription = null,
+                                                tint = Color.White.copy(alpha = 0.6f),
+                                                modifier = Modifier.size(40.dp)
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = if (selectedMediaType == "video") "Video Ad Preview" else "Photo Ad Preview",
+                                                color = Color.White.copy(alpha = 0.8f),
+                                                fontSize = 12.sp
+                                            )
+                                        }
+                                    }
+
+                                    if (selectedMediaType == "video") {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = Color.Black.copy(alpha = 0.6f),
+                                            modifier = Modifier.size(48.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Default.PlayArrow,
+                                                    contentDescription = "Play Video",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(30.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
 
                             Spacer(modifier = Modifier.height(10.dp))
@@ -921,12 +1141,16 @@ fun CreateAdScreen(
                         showConfirmDialog = false
                         isSubmitting = true
 
+                        val activePage = selectedPage
+                        val effectiveUserName = if (selectedPostType == "PAGE" && activePage != null) activePage.name else userName
+                        val effectiveAvatar = if (selectedPostType == "PAGE" && activePage != null) activePage.avatarUrl else userAvatar
+
                         val newAd = AdvertisementItem(
                             userId = currentUser?.uid.orEmpty(),
-                            userName = userName,
+                            userName = effectiveUserName,
                             userEmail = userEmail,
                             userPhone = userPhone,
-                            userAvatar = userAvatar,
+                            userAvatar = effectiveAvatar,
                             campaignName = campaignName.trim(),
                             campaignGoal = selectedGoal,
                             headline = headline.trim(),
@@ -943,10 +1167,15 @@ fun CreateAdScreen(
                             status = "PENDING",
                             createdAt = System.currentTimeMillis(),
                             estimatedReach = estimatedReachMax,
-                            estimatedClicks = estimatedClicks
+                            estimatedClicks = estimatedClicks,
+                            mediaType = selectedMediaType,
+                            postType = selectedPostType,
+                            pageId = if (selectedPostType == "PAGE") selectedPage?.id.orEmpty() else "",
+                            pageName = if (selectedPostType == "PAGE") selectedPage?.name.orEmpty() else "",
+                            pageAvatarUrl = if (selectedPostType == "PAGE") selectedPage?.avatarUrl.orEmpty() else ""
                         )
 
-                        val result = adRepo.submitAdvertisement(newAd, walletRepo)
+                        val result = adRepo.submitAdvertisement(newAd, walletRepo, postRepo)
                         isSubmitting = false
 
                         if (result.isSuccess) {

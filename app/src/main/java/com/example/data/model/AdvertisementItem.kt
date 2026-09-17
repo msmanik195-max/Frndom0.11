@@ -15,6 +15,12 @@ data class AdvertisementItem(
     val headline: String = "",
     val description: String = "",
     val mediaUrl: String = "",
+    val mediaType: String = "photo", // "photo" or "video"
+    val postType: String = "PROFILE", // "PROFILE" or "PAGE"
+    val pageId: String = "",
+    val pageName: String = "",
+    val pageAvatarUrl: String = "",
+    val linkedPostId: String = "",
     val destinationUrl: String = "",
     val callToAction: String = "Learn More", // Learn More, Shop Now, Sign Up, Contact Us, Send Message, Visit Page
     val targetLocation: String = "All Bangladesh",
@@ -44,6 +50,12 @@ data class AdvertisementItem(
         "headline" to headline,
         "description" to description,
         "mediaUrl" to mediaUrl,
+        "mediaType" to mediaType,
+        "postType" to postType,
+        "pageId" to pageId,
+        "pageName" to pageName,
+        "pageAvatarUrl" to pageAvatarUrl,
+        "linkedPostId" to linkedPostId,
         "destinationUrl" to destinationUrl,
         "callToAction" to callToAction,
         "targetLocation" to targetLocation,

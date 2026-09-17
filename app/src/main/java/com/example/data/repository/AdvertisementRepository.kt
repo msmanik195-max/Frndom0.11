@@ -2,7 +2,9 @@ package com.example.data.repository
 
 import android.content.Context
 import android.util.Log
+import com.example.data.model.AdPlacementSettings
 import com.example.data.model.AdvertisementItem
+import com.example.data.model.PostItem
 import com.google.firebase.FirebaseApp
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -23,6 +25,10 @@ class AdvertisementRepository(private val context: Context) {
     private val _advertisementsFlow = MutableStateFlow<List<AdvertisementItem>>(loadAdvertisementsLocally())
     val advertisementsFlow: StateFlow<List<AdvertisementItem>> = _advertisementsFlow.asStateFlow()
 
+    private val _placementSettingsFlow = MutableStateFlow(loadPlacementSettingsLocally())
+    val placementSettingsFlow: StateFlow<AdPlacementSettings> = _placementSettingsFlow.asStateFlow()
+    val adPlacementSettingsFlow: StateFlow<AdPlacementSettings> = _placementSettingsFlow.asStateFlow()
+
     private val rtdb: FirebaseDatabase? by lazy {
         try {
             if (FirebaseApp.getApps(context).isNotEmpty()) {
@@ -41,6 +47,7 @@ class AdvertisementRepository(private val context: Context) {
     }
 
     private val adsRef: DatabaseReference? by lazy { rtdb?.getReference("admin_advertisements") }
+    private val placementRef: DatabaseReference? by lazy { rtdb?.getReference("admin_ad_placement_settings") }
 
     init {
         // Clean any cached demo ads
@@ -48,6 +55,53 @@ class AdvertisementRepository(private val context: Context) {
         _advertisementsFlow.value = filtered
         saveAdvertisementsLocally(filtered)
         setupFirebaseListener()
+        setupPlacementListener()
+    }
+
+    private fun setupPlacementListener() {
+        try {
+            placementRef?.addValueEventListener(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    try {
+                        val homeEnabled = snapshot.child("homeAdsEnabled").getValue(Boolean::class.java) ?: true
+                        val homeInterval = snapshot.child("homePostInterval").getValue(Int::class.java) ?: 5
+                        val reelsEnabled = snapshot.child("reelsAdsEnabled").getValue(Boolean::class.java) ?: true
+                        val reelsInterval = snapshot.child("reelsVideoInterval").getValue(Int::class.java) ?: 5
+                        val updated = snapshot.child("updatedAt").getValue(Long::class.java) ?: System.currentTimeMillis()
+                        val settings = AdPlacementSettings(
+                            homeAdsEnabled = homeEnabled,
+                            homePostInterval = homeInterval.coerceAtLeast(1),
+                            reelsAdsEnabled = reelsEnabled,
+                            reelsVideoInterval = reelsInterval.coerceAtLeast(1),
+                            updatedAt = updated
+                        )
+                        _placementSettingsFlow.value = settings
+                        prefs.edit().putString("placement_settings_json", settings.toJsonString()).apply()
+                    } catch (e: Exception) {
+                        Log.w("AdvertisementRepo", "Error parsing placement settings: ${e.message}")
+                    }
+                }
+
+                override fun onCancelled(error: DatabaseError) {}
+            })
+        } catch (e: Exception) {
+            Log.w("AdvertisementRepo", "Placement listener setup error: ${e.message}")
+        }
+    }
+
+    private fun loadPlacementSettingsLocally(): AdPlacementSettings {
+        val json = prefs.getString("placement_settings_json", null)
+        return AdPlacementSettings.fromJsonString(json)
+    }
+
+    fun savePlacementSettings(settings: AdPlacementSettings) {
+        _placementSettingsFlow.value = settings
+        prefs.edit().putString("placement_settings_json", settings.toJsonString()).apply()
+        try {
+            placementRef?.setValue(settings.toMap())
+        } catch (e: Exception) {
+            Log.w("AdvertisementRepo", "Failed to sync placement settings to Firebase: ${e.message}")
+        }
     }
 
     private fun setupFirebaseListener() {
@@ -106,6 +160,12 @@ class AdvertisementRepository(private val context: Context) {
                         headline = obj.optString("headline", ""),
                         description = obj.optString("description", ""),
                         mediaUrl = obj.optString("mediaUrl", ""),
+                        mediaType = obj.optString("mediaType", "photo"),
+                        postType = obj.optString("postType", "PROFILE"),
+                        pageId = obj.optString("pageId", ""),
+                        pageName = obj.optString("pageName", ""),
+                        pageAvatarUrl = obj.optString("pageAvatarUrl", ""),
+                        linkedPostId = obj.optString("linkedPostId", ""),
                         destinationUrl = obj.optString("destinationUrl", ""),
                         callToAction = obj.optString("callToAction", "Learn More"),
                         targetLocation = obj.optString("targetLocation", "All Bangladesh"),
@@ -145,6 +205,12 @@ class AdvertisementRepository(private val context: Context) {
                     put("headline", item.headline)
                     put("description", item.description)
                     put("mediaUrl", item.mediaUrl)
+                    put("mediaType", item.mediaType)
+                    put("postType", item.postType)
+                    put("pageId", item.pageId)
+                    put("pageName", item.pageName)
+                    put("pageAvatarUrl", item.pageAvatarUrl)
+                    put("linkedPostId", item.linkedPostId)
                     put("destinationUrl", item.destinationUrl)
                     put("callToAction", item.callToAction)
                     put("targetLocation", item.targetLocation)
@@ -168,7 +234,11 @@ class AdvertisementRepository(private val context: Context) {
         } catch (_: Exception) {}
     }
 
-    fun submitAdvertisement(ad: AdvertisementItem, walletRepo: WalletRepository): Result<AdvertisementItem> {
+    fun submitAdvertisement(
+        ad: AdvertisementItem,
+        walletRepo: WalletRepository,
+        postRepo: PostRepository? = null
+    ): Result<AdvertisementItem> {
         val currentBalance = walletRepo.balanceFlow.value
         if (currentBalance < ad.totalBudget) {
             return Result.failure(
@@ -186,8 +256,45 @@ class AdvertisementRepository(private val context: Context) {
             return Result.failure(Exception("Failed to process payment from wallet."))
         }
 
+        var linkedPostId = ad.linkedPostId
+        // Also post to user profile or page timeline as requested
+        if (postRepo != null) {
+            try {
+                val newPostId = if (linkedPostId.isNotBlank()) linkedPostId else UUID.randomUUID().toString()
+                val isPage = ad.postType.equals("PAGE", ignoreCase = true) && ad.pageId.isNotBlank()
+                val authorId = if (isPage) ad.pageId else ad.userId
+                val authorName = if (isPage) ad.pageName else ad.userName
+                val authorAvatar = if (isPage) ad.pageAvatarUrl else ad.userAvatar
+                val postContent = buildString {
+                    if (ad.headline.isNotBlank()) append(ad.headline)
+                    if (ad.headline.isNotBlank() && ad.description.isNotBlank()) append("\n\n")
+                    if (ad.description.isNotBlank()) append(ad.description)
+                }
+                val mType = if (ad.mediaType.equals("video", ignoreCase = true)) "video" else if (ad.mediaUrl.isNotBlank()) "photo" else "text"
+
+                val createdPost = PostItem(
+                    id = newPostId,
+                    authorId = authorId,
+                    authorName = authorName,
+                    authorAvatarUrl = authorAvatar,
+                    content = postContent,
+                    mediaType = mType,
+                    mediaUrl = ad.mediaUrl,
+                    audience = "Public",
+                    pageId = if (isPage) ad.pageId else "",
+                    pageName = if (isPage) ad.pageName else "",
+                    createdAt = System.currentTimeMillis()
+                )
+                postRepo.createPost(createdPost)
+                linkedPostId = newPostId
+            } catch (e: Exception) {
+                Log.w("AdvertisementRepo", "Failed to create linked post: ${e.message}")
+            }
+        }
+
         val finalAd = ad.copy(
             id = if (ad.id.isBlank()) UUID.randomUUID().toString() else ad.id,
+            linkedPostId = linkedPostId,
             status = "PENDING",
             createdAt = System.currentTimeMillis()
         )

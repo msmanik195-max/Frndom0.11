@@ -23,7 +23,7 @@ class GroupPageRepository(private val context: Context) {
 
     private val dbRef: DatabaseReference? by lazy {
         try {
-            FirebaseDatabase.getInstance().reference
+            com.example.util.FirebaseDatabaseHelper.getInstance().reference
         } catch (e: Throwable) {
             Log.w("GroupPageRepository", "Firebase Database unavailable: ${e.message}")
             null
