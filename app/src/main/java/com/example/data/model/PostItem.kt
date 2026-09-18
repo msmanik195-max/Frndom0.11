@@ -44,6 +44,8 @@ data class PostItem(
     val viewsCount: Int = 0,
     val viewedByMap: Map<String, Boolean> = emptyMap(), // viewerId -> true (unique views count)
     val isAuthorVerified: Boolean = false,
+    val advertisementId: String = "",
+    val isSponsored: Boolean = false,
     val createdAt: Long = System.currentTimeMillis()
 ) {
     fun getAllMediaUrls(): List<String> {
@@ -108,6 +110,8 @@ data class PostItem(
             "reactionsMap" to reactionsMap,
             "viewedByMap" to viewedByMap,
             "isAuthorVerified" to isAuthorVerified,
+            "advertisementId" to advertisementId,
+            "isSponsored" to isSponsored,
             "createdAt" to createdAt
         )
     }

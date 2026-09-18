@@ -37,6 +37,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import com.example.ui.components.DEFAULT_POPULAR_HASHTAGS
 import com.example.ui.components.HashtagVisualTransformation
+import com.example.util.MediaUriHelper
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FormatAlignCenter
 import androidx.compose.material.icons.filled.FormatAlignLeft
@@ -151,13 +152,19 @@ fun CreatePostScreen(
     var selectedVideoUri by remember { mutableStateOf<Uri?>(null) }
     var isUploading by remember { mutableStateOf(false) }
 
+    val context = LocalContext.current
+
     // Multi-Photo Picker Activity Launcher (Up to 10 photos)
     val multiPhotoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)
     ) { uris: List<Uri> ->
         if (uris.isNotEmpty()) {
             selectedMediaUris.clear()
-            selectedMediaUris.addAll(uris.take(10))
+            val safeUris = uris.take(10).map { uri ->
+                val localPath = MediaUriHelper.copyUriToAppStorage(context, uri, "posts", "jpg")
+                if (localPath.isNotBlank()) Uri.parse(localPath) else uri
+            }
+            selectedMediaUris.addAll(safeUris)
             selectedVideoUri = null
             mediaTypeState = "photo"
             selectedBackground = PostBackgroundStyle.NONE
@@ -170,7 +177,8 @@ fun CreatePostScreen(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         if (uri != null) {
-            selectedVideoUri = uri
+            val localPath = MediaUriHelper.copyUriToAppStorage(context, uri, "reels", "mp4")
+            selectedVideoUri = if (localPath.isNotBlank()) Uri.parse(localPath) else uri
             selectedMediaUris.clear()
             selectedBackground = PostBackgroundStyle.NONE
             showStylePanel = false
@@ -184,7 +192,6 @@ fun CreatePostScreen(
     }
     val initial = displayName.firstOrNull()?.uppercase() ?: "U"
 
-    val context = LocalContext.current
     val contentLimitManager = remember { ContentLimitManager.getInstance(context) }
     val adminRepo = remember { AdminRequestRepository.getInstance(context) }
     val appSettings by adminRepo.appSettingsFlow.collectAsState()

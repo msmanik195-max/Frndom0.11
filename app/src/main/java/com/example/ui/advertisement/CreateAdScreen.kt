@@ -42,6 +42,7 @@ import com.example.data.repository.AppSettingsRepository
 import com.example.data.repository.GroupPageRepository
 import com.example.data.repository.PostRepository
 import com.example.data.repository.WalletRepository
+import com.example.util.MediaUriHelper
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -88,7 +89,8 @@ fun CreateAdScreen(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         if (uri != null) {
-            mediaUrl = uri.toString()
+            val localPath = MediaUriHelper.copyUriToAppStorage(context, uri, "ad_media", "jpg")
+            mediaUrl = if (localPath.isNotBlank()) localPath else uri.toString()
             selectedMediaType = "photo"
         }
     }
@@ -97,7 +99,8 @@ fun CreateAdScreen(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         if (uri != null) {
-            mediaUrl = uri.toString()
+            val localPath = MediaUriHelper.copyUriToAppStorage(context, uri, "ad_media", "mp4")
+            mediaUrl = if (localPath.isNotBlank()) localPath else uri.toString()
             selectedMediaType = "video"
         }
     }
@@ -320,7 +323,12 @@ fun CreateAdScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(10.dp))
-                                .clickable { selectedGoal = goalName }
+                                .clickable {
+                                    selectedGoal = goalName
+                                    if (goalName == "Messages / Chat") {
+                                        selectedCta = "Send Message"
+                                    }
+                                }
                                 .padding(vertical = 4.dp)
                         ) {
                             Row(
@@ -329,7 +337,12 @@ fun CreateAdScreen(
                             ) {
                                 RadioButton(
                                     selected = isSelected,
-                                    onClick = { selectedGoal = goalName },
+                                    onClick = {
+                                        selectedGoal = goalName
+                                        if (goalName == "Messages / Chat") {
+                                            selectedCta = "Send Message"
+                                        }
+                                    },
                                     colors = RadioButtonDefaults.colors(selectedColor = Color(0xFF1877F2))
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -566,17 +579,56 @@ fun CreateAdScreen(
                     )
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Destination URL
-                    OutlinedTextField(
-                        value = destinationUrl,
-                        onValueChange = { destinationUrl = it },
-                        label = { Text("Destination URL (Website or Page Link)") },
-                        placeholder = { Text("https://yourwebsite.com or page link") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("input_destination_url"),
-                        singleLine = true
-                    )
+                    // Destination URL or In-App Messenger Chat Connection
+                    if (selectedCta == "Send Message") {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xFF1877F2).copy(alpha = 0.08f),
+                            border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.ui.graphics.SolidColor(Color(0xFF1877F2).copy(alpha = 0.35f))),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = Color(0xFF1877F2),
+                                    modifier = Modifier.size(38.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.ChatBubble, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "In-App Messenger Chat Connected",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = Color(0xFF1877F2)
+                                    )
+                                    Text(
+                                        text = "গ্রাহকরা 'Send Message' বাটনে ক্লিক করলেই সরাসরি আপনার ফ্রেনডম ইন-অ্যাপ চ্যাটে মেসেজ করতে পারবে। কোনো ওয়েবসাইট লিংকের প্রয়োজন নেই।",
+                                        fontSize = 11.sp,
+                                        color = textSecondary,
+                                        lineHeight = 15.sp
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        OutlinedTextField(
+                            value = destinationUrl,
+                            onValueChange = { destinationUrl = it },
+                            label = { Text("Destination URL (Website or Page Link)") },
+                            placeholder = { Text("https://yourwebsite.com or page link") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("input_destination_url"),
+                            singleLine = true
+                        )
+                    }
                     Spacer(modifier = Modifier.height(12.dp))
 
                     // Call to Action (CTA)
@@ -765,7 +817,7 @@ fun CreateAdScreen(
                             ) {
                                 Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                                     Text(
-                                        text = destinationUrl.removePrefix("https://").take(25).ifBlank { "frndom.app" },
+                                        text = if (selectedCta == "Send Message") "MESSENGER CHAT" else destinationUrl.removePrefix("https://").take(25).ifBlank { "frndom.app" },
                                         fontSize = 11.sp,
                                         color = textSecondary
                                     )
@@ -1156,7 +1208,7 @@ fun CreateAdScreen(
                             headline = headline.trim(),
                             description = description.trim(),
                             mediaUrl = mediaUrl.trim(),
-                            destinationUrl = destinationUrl.trim(),
+                            destinationUrl = if (selectedCta == "Send Message") "chat:${currentUser?.uid.orEmpty()}" else destinationUrl.trim(),
                             callToAction = selectedCta,
                             targetLocation = targetLocation,
                             targetAgeRange = targetAgeRange,

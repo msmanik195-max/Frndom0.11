@@ -14,15 +14,19 @@ import org.json.JSONObject
 data class AdPlacementSettings(
     val homeAdsEnabled: Boolean = true,
     val homePostInterval: Int = 5,
+    val homeVideoAdsEnabled: Boolean = true,
     val reelsAdsEnabled: Boolean = true,
     val reelsVideoInterval: Int = 5,
+    val reelsImageAdsEnabled: Boolean = true,
     val updatedAt: Long = System.currentTimeMillis()
 ) {
     fun toMap(): Map<String, Any> = mapOf(
         "homeAdsEnabled" to homeAdsEnabled,
         "homePostInterval" to homePostInterval,
+        "homeVideoAdsEnabled" to homeVideoAdsEnabled,
         "reelsAdsEnabled" to reelsAdsEnabled,
         "reelsVideoInterval" to reelsVideoInterval,
+        "reelsImageAdsEnabled" to reelsImageAdsEnabled,
         "updatedAt" to updatedAt
     )
 
@@ -30,8 +34,10 @@ data class AdPlacementSettings(
         val obj = JSONObject()
         obj.put("homeAdsEnabled", homeAdsEnabled)
         obj.put("homePostInterval", homePostInterval)
+        obj.put("homeVideoAdsEnabled", homeVideoAdsEnabled)
         obj.put("reelsAdsEnabled", reelsAdsEnabled)
         obj.put("reelsVideoInterval", reelsVideoInterval)
+        obj.put("reelsImageAdsEnabled", reelsImageAdsEnabled)
         obj.put("updatedAt", updatedAt)
         return obj.toString()
     }
@@ -44,8 +50,10 @@ data class AdPlacementSettings(
                 AdPlacementSettings(
                     homeAdsEnabled = obj.optBoolean("homeAdsEnabled", true),
                     homePostInterval = obj.optInt("homePostInterval", 5).coerceAtLeast(1),
+                    homeVideoAdsEnabled = obj.optBoolean("homeVideoAdsEnabled", true),
                     reelsAdsEnabled = obj.optBoolean("reelsAdsEnabled", true),
                     reelsVideoInterval = obj.optInt("reelsVideoInterval", 5).coerceAtLeast(1),
+                    reelsImageAdsEnabled = obj.optBoolean("reelsImageAdsEnabled", true),
                     updatedAt = obj.optLong("updatedAt", System.currentTimeMillis())
                 )
             } catch (_: Exception) {

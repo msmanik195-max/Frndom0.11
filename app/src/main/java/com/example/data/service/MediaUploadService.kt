@@ -7,6 +7,7 @@ import android.net.Uri
 import android.util.Log
 import com.example.data.model.R2StorageConfig
 import com.example.data.repository.StorageRepository
+import com.example.util.MediaUriHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -65,12 +66,14 @@ class MediaUploadService(
             if (activeConfig != null) {
                 uploadBytesToR2(bytes, objectKey, "image/jpeg", activeConfig)
             } else {
-                // If no active R2 config yet, use uri string or default public placeholder
-                Result.success(uri.toString())
+                // Save locally to internal files directory so it never triggers SecurityException
+                val localFile = MediaUriHelper.saveBytesToAppStorage(context, bytes, "uploads", filename)
+                Result.success(Uri.fromFile(localFile).toString())
             }
         } catch (e: Exception) {
             Log.e("MediaUploadService", "Image upload failed: ${e.message}", e)
-            Result.success(uri.toString())
+            val fallbackPath = MediaUriHelper.copyUriToAppStorage(context, uri, folder, "jpg")
+            Result.success(if (fallbackPath.isNotBlank()) fallbackPath else uri.toString())
         }
     }
 
@@ -91,11 +94,14 @@ class MediaUploadService(
             if (activeConfig != null) {
                 uploadBytesToR2(bytes, objectKey, "video/mp4", activeConfig)
             } else {
-                Result.success(uri.toString())
+                // Save locally to internal files directory so it never triggers SecurityException
+                val localFile = MediaUriHelper.saveBytesToAppStorage(context, bytes, folder, filename)
+                Result.success(Uri.fromFile(localFile).toString())
             }
         } catch (e: Exception) {
             Log.e("MediaUploadService", "Video upload failed: ${e.message}", e)
-            Result.success(uri.toString())
+            val fallbackPath = MediaUriHelper.copyUriToAppStorage(context, uri, folder, "mp4")
+            Result.success(if (fallbackPath.isNotBlank()) fallbackPath else uri.toString())
         }
     }
 

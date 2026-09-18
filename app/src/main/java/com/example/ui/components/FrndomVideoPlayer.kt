@@ -43,6 +43,7 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import com.example.util.MediaUriHelper
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -54,24 +55,44 @@ fun FrndomVideoPlayer(
     onDoubleTap: (() -> Unit)? = null,
     onSingleTap: (() -> Unit)? = null
 ) {
-    if (videoUrl.isBlank()) {
+    val context = LocalContext.current.applicationContext
+
+    // Safely sanitize content URIs so background threads and ExoPlayer don't throw SecurityException
+    val safeVideoUrl = remember(videoUrl) {
+        if (videoUrl.isBlank()) {
+            ""
+        } else if (videoUrl.startsWith("content://")) {
+            MediaUriHelper.sanitizeMediaUrl(context, videoUrl, "video_cache", "mp4")
+        } else {
+            videoUrl
+        }
+    }
+
+    if (safeVideoUrl.isBlank()) {
         Box(
             modifier = modifier
                 .fillMaxWidth()
                 .background(Color.Black),
             contentAlignment = Alignment.Center
-        ) {}
+        ) {
+            Icon(
+                imageVector = Icons.Default.PlayArrow,
+                contentDescription = "Video Unavailable",
+                tint = Color.White.copy(alpha = 0.4f),
+                modifier = Modifier.size(48.dp)
+            )
+        }
         return
     }
 
-    val context = LocalContext.current.applicationContext
     var isPlaying by remember { mutableStateOf(autoPlay) }
     var isMuted by remember { mutableStateOf(false) }
     var isBuffering by remember { mutableStateOf(false) }
     var hasPlaybackError by remember { mutableStateOf(false) }
 
     // Safe ExoPlayer instantiation with decoder fallback to prevent component resource errors (code 6)
-    val exoPlayer = remember(videoUrl) {
+    val exoPlayer = remember(safeVideoUrl) {
+        if (safeVideoUrl.isBlank()) return@remember null
         try {
             val renderersFactory = DefaultRenderersFactory(context).apply {
                 setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
@@ -81,7 +102,7 @@ fun FrndomVideoPlayer(
                 .setRenderersFactory(renderersFactory)
                 .build()
                 .apply {
-                    val mediaItem = MediaItem.fromUri(Uri.parse(videoUrl))
+                    val mediaItem = MediaItem.fromUri(Uri.parse(safeVideoUrl))
                     setMediaItem(mediaItem)
                     repeatMode = if (isLooping) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
                     playWhenReady = autoPlay

@@ -97,6 +97,7 @@ fun ReelsScreen(
     onCreateReelClick: () -> Unit = {},
     onCommentClick: (PostItem) -> Unit = {},
     onShareClick: (PostItem) -> Unit = {},
+    onMessageClick: ((UserProfile) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -104,18 +105,41 @@ fun ReelsScreen(
     val mediaUploadService = remember { MediaUploadService(context, storageRepository) }
 
     val posts by postRepository.postsFlow.collectAsState()
-    val reels = remember(posts) { posts.filter { it.mediaType == "reel" || it.mediaType == "video" } }
-    val userId = userProfile?.uid ?: "user_id"
-
     val adRepo = remember { AdvertisementRepository.getInstance(context) }
     val allAds by adRepo.advertisementsFlow.collectAsState()
     val adPlacementSettings by adRepo.adPlacementSettingsFlow.collectAsState()
-    val runningVideoAds = remember(allAds) {
-        allAds.filter { (it.status == "RUNNING" || it.status == "APPROVED") && (it.mediaType == "video" || it.mediaUrl.endsWith(".mp4", ignoreCase = true) || it.mediaUrl.contains(".mp4?", ignoreCase = true)) }
+
+    val reels = remember(posts, allAds) {
+        val approvedAdIds = allAds.filter { it.status == "RUNNING" || it.status == "APPROVED" }.map { it.id }.toSet()
+        val unapprovedLinkedPostIds = allAds.filter { it.status != "RUNNING" && it.status != "APPROVED" }.mapNotNull { it.linkedPostId.ifBlank { null } }.toSet()
+
+        posts.filter { post ->
+            if (post.mediaType != "reel" && post.mediaType != "video") return@filter false
+            if (post.advertisementId.isNotBlank() && !approvedAdIds.contains(post.advertisementId)) return@filter false
+            if (unapprovedLinkedPostIds.contains(post.id)) return@filter false
+            if (post.isSponsored && (post.advertisementId.isBlank() || !approvedAdIds.contains(post.advertisementId))) return@filter false
+            true
+        }
+    }
+    val userId = userProfile?.uid ?: "user_id"
+
+    val eligibleReelAds = remember(allAds, adPlacementSettings.reelsImageAdsEnabled) {
+        allAds.filter { ad ->
+            val isRunning = ad.status == "RUNNING" || ad.status == "APPROVED"
+            if (!isRunning) return@filter false
+            val isVideo = ad.mediaType.equals("video", ignoreCase = true) ||
+                    ad.mediaUrl.endsWith(".mp4", ignoreCase = true) ||
+                    ad.mediaUrl.contains(".mp4?", ignoreCase = true)
+            if (isVideo) {
+                true
+            } else {
+                adPlacementSettings.reelsImageAdsEnabled && ad.mediaUrl.isNotBlank()
+            }
+        }
     }
 
-    val reelPageItems = remember(reels, runningVideoAds, adPlacementSettings) {
-        if (runningVideoAds.isEmpty() || reels.isEmpty()) {
+    val reelPageItems = remember(reels, eligibleReelAds, adPlacementSettings) {
+        if (eligibleReelAds.isEmpty() || reels.isEmpty()) {
             reels.map { ReelPageItem.Post(it) }
         } else {
             val interval = adPlacementSettings.reelsVideoInterval.coerceAtLeast(1)
@@ -124,7 +148,7 @@ fun ReelsScreen(
             reels.forEachIndexed { index, post ->
                 list.add(ReelPageItem.Post(post))
                 if ((index + 1) % interval == 0) {
-                    list.add(ReelPageItem.Ad(runningVideoAds[adIdx % runningVideoAds.size]))
+                    list.add(ReelPageItem.Ad(eligibleReelAds[adIdx % eligibleReelAds.size]))
                     adIdx++
                 }
             }
@@ -247,10 +271,21 @@ fun ReelsScreen(
                             isActive = isCurrentPage,
                             onAdClick = {
                                 adRepo.recordClick(ad.id)
-                                try {
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ad.destinationUrl))
-                                    context.startActivity(intent)
-                                } catch (_: Exception) {}
+                                if (ad.callToAction.equals("Send Message", ignoreCase = true) || ad.destinationUrl.startsWith("chat:")) {
+                                    val peer = UserProfile(
+                                        uid = ad.userId,
+                                        firstName = ad.userName.substringBefore(" "),
+                                        lastName = ad.userName.substringAfter(" ", ""),
+                                        fullName = ad.userName,
+                                        profilePictureUrl = ad.userAvatar
+                                    )
+                                    onMessageClick?.invoke(peer)
+                                } else if (ad.destinationUrl.isNotBlank()) {
+                                    try {
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ad.destinationUrl))
+                                        context.startActivity(intent)
+                                    } catch (_: Exception) {}
+                                }
                             },
                             onShareClick = {
                                 try {
@@ -723,20 +758,32 @@ private fun SponsoredReelVideoItem(
             .background(Color.Black)
             .testTag("sponsored_reel_${ad.id}")
     ) {
-        // Video Player
+        // Video Player or Photo Ad
         if (ad.mediaUrl.isNotBlank()) {
+            val isVideo = ad.mediaType.equals("video", ignoreCase = true) ||
+                    ad.mediaUrl.endsWith(".mp4", ignoreCase = true) ||
+                    ad.mediaUrl.contains(".mp4?", ignoreCase = true)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black),
                 contentAlignment = Alignment.Center
             ) {
-                FrndomVideoPlayer(
-                    videoUrl = ad.mediaUrl,
-                    modifier = Modifier.fillMaxSize(),
-                    autoPlay = isActive,
-                    isLooping = true
-                )
+                if (isVideo) {
+                    FrndomVideoPlayer(
+                        videoUrl = ad.mediaUrl,
+                        modifier = Modifier.fillMaxSize(),
+                        autoPlay = isActive,
+                        isLooping = true
+                    )
+                } else {
+                    AsyncImage(
+                        model = ad.mediaUrl,
+                        contentDescription = "Sponsored Ad",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit
+                    )
+                }
             }
         } else {
             // Fallback gradient for sponsored post

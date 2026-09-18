@@ -1,5 +1,6 @@
 package com.example.ui.advertisement
 
+import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -32,6 +33,7 @@ import com.example.data.model.AdvertisementItem
 import com.example.data.model.UserProfile
 import com.example.data.repository.AdvertisementRepository
 import com.example.data.repository.AppSettingsRepository
+import com.example.data.repository.PostRepository
 import com.example.data.repository.WalletRepository
 import java.text.SimpleDateFormat
 import java.util.*
@@ -56,6 +58,7 @@ fun AdvertisementScreen(
     val adRepo = remember { AdvertisementRepository.getInstance(context) }
     val walletRepo = remember { WalletRepository.getInstance(context) }
     val appSettingsRepo = remember { AppSettingsRepository.getInstance(context) }
+    val postRepo = remember { PostRepository(context.applicationContext) }
     val isDarkMode by appSettingsRepo.isDarkMode.collectAsState()
 
     val walletBalance by walletRepo.balanceFlow.collectAsState()
@@ -71,6 +74,7 @@ fun AdvertisementScreen(
     var selectedTab by remember { mutableStateOf(AdUserTab.RUNNING) }
     var isCreatingNewAd by remember { mutableStateOf(false) }
     var selectedAdForDetail by remember { mutableStateOf<AdvertisementItem?>(null) }
+    var adToDelete by remember { mutableStateOf<AdvertisementItem?>(null) }
 
     val bgMain = if (isDarkMode) Color(0xFF18191A) else Color(0xFFF0F2F5)
     val cardBg = if (isDarkMode) Color(0xFF242526) else Color.White
@@ -108,6 +112,50 @@ fun AdvertisementScreen(
             onTogglePause = {
                 adRepo.togglePauseResume(ad.id)
                 selectedAdForDetail = null
+            },
+            onDelete = {
+                selectedAdForDetail = null
+                adToDelete = ad
+            }
+        )
+    }
+
+    // Delete Confirmation Dialog
+    adToDelete?.let { ad ->
+        AlertDialog(
+            onDismissRequest = { adToDelete = null },
+            containerColor = cardBg,
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.DeleteForever, contentDescription = null, tint = Color(0xFFD32F2F), modifier = Modifier.size(24.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Delete Advertisement", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = textPrimary)
+                }
+            },
+            text = {
+                Text(
+                    text = "Are you sure you want to permanently delete \"${ad.campaignName}\"?\n\nThis will remove it completely from the database, campaign list, and feeds.",
+                    fontSize = 13.sp,
+                    color = textPrimary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val toDeleteId = ad.id
+                        adToDelete = null
+                        adRepo.deleteAdvertisement(toDeleteId, postRepo)
+                        Toast.makeText(context, "Advertisement permanently deleted from database", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F))
+                ) {
+                    Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { adToDelete = null }) {
+                    Text("Cancel", color = textSecondary)
+                }
             }
         )
     }
@@ -186,13 +234,13 @@ fun AdvertisementScreen(
             )
         },
         floatingActionButton = {
-            // Prominent "+ New Ad" button requested by user
+            // Prominent "Create New Ad" button placed in bottom-right corner as requested
             ExtendedFloatingActionButton(
                 onClick = { isCreatingNewAd = true },
-                icon = { Icon(Icons.Default.Add, contentDescription = "New Ad") },
+                icon = { Icon(Icons.Default.Add, contentDescription = "Create New Ad") },
                 text = {
                     Text(
-                        text = "New Ad",
+                        text = "Create New Ad",
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
                     )
@@ -204,7 +252,7 @@ fun AdvertisementScreen(
                     .testTag("new_ad_fab_button")
             )
         },
-        floatingActionButtonPosition = FabPosition.Center
+        floatingActionButtonPosition = FabPosition.End
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -326,24 +374,12 @@ fun AdvertisementScreen(
                         Spacer(modifier = Modifier.height(6.dp))
 
                         Text(
-                            text = "Click the \"+ New Ad\" button below to start running advertisements and reaching thousands of customers!",
+                            text = "Tap \"Create New Ad\" at the bottom right corner to start running advertisements and reaching your audience!",
                             fontSize = 13.sp,
                             color = textSecondary,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                             modifier = Modifier.padding(horizontal = 20.dp)
                         )
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        Button(
-                            onClick = { isCreatingNewAd = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1877F2)),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Create New Ad", fontWeight = FontWeight.Bold)
-                        }
                     }
                 }
             } else {
@@ -357,7 +393,8 @@ fun AdvertisementScreen(
                             ad = ad,
                             isDarkMode = isDarkMode,
                             onCardClick = { selectedAdForDetail = ad },
-                            onTogglePause = { adRepo.togglePauseResume(ad.id) }
+                            onTogglePause = { adRepo.togglePauseResume(ad.id) },
+                            onDeleteClick = { adToDelete = ad }
                         )
                     }
                 }
@@ -371,7 +408,8 @@ private fun UserAdCard(
     ad: AdvertisementItem,
     isDarkMode: Boolean,
     onCardClick: () -> Unit,
-    onTogglePause: () -> Unit
+    onTogglePause: () -> Unit,
+    onDeleteClick: () -> Unit
 ) {
     val cardBg = if (isDarkMode) Color(0xFF242526) else Color.White
     val textPrimary = if (isDarkMode) Color(0xFFE4E6EB) else Color(0xFF050505)
@@ -526,6 +564,21 @@ private fun UserAdCard(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = onDeleteClick,
+                        modifier = Modifier
+                            .size(32.dp)
+                            .testTag("delete_user_ad_${ad.id}")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Delete Ad",
+                            tint = Color(0xFFD32F2F),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+
                     if (ad.status == "RUNNING" || ad.status == "PAUSED") {
                         OutlinedButton(
                             onClick = onTogglePause,
@@ -573,7 +626,8 @@ private fun UserAdDetailDialog(
     ad: AdvertisementItem,
     isDarkMode: Boolean,
     onDismiss: () -> Unit,
-    onTogglePause: () -> Unit
+    onTogglePause: () -> Unit,
+    onDelete: () -> Unit
 ) {
     val textPrimary = if (isDarkMode) Color(0xFFE4E6EB) else Color(0xFF050505)
     val textSecondary = if (isDarkMode) Color(0xFFB0B3B8) else Color(0xFF65676B)
@@ -682,8 +736,22 @@ private fun UserAdDetailDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Dismiss")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(
+                    onClick = {
+                        onDismiss()
+                        onDelete()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFD32F2F))
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(15.dp), tint = Color(0xFFD32F2F))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Delete", fontWeight = FontWeight.Bold, color = Color(0xFFD32F2F))
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                TextButton(onClick = onDismiss) {
+                    Text("Dismiss")
+                }
             }
         }
     )

@@ -24,6 +24,7 @@ import java.util.UUID
 
 import android.net.Uri
 import com.example.data.service.MediaUploadService
+import com.example.util.MediaUriHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 
@@ -86,7 +87,9 @@ class PostRepository(private val context: Context) {
                             val post = child.getValue(PostItem::class.java)
                             if (post != null) {
                                 val isVerified = post.isAuthorVerified || UserRepository.isUserVerifiedStatic(post.authorId)
-                                list.add(if (isVerified && !post.isAuthorVerified) post.copy(isAuthorVerified = true) else post)
+                                val safeMediaUrl = MediaUriHelper.sanitizeMediaUrl(context, post.mediaUrl, if (post.mediaType == "reel") "reels" else "posts", if (post.mediaType == "reel" || post.mediaType == "video") "mp4" else "jpg")
+                                val sanitizedPost = if (safeMediaUrl != post.mediaUrl) post.copy(mediaUrl = safeMediaUrl) else post
+                                list.add(if (isVerified && !sanitizedPost.isAuthorVerified) sanitizedPost.copy(isAuthorVerified = true) else sanitizedPost)
                             }
                         } catch (_: Exception) {}
                     }
@@ -140,6 +143,7 @@ class PostRepository(private val context: Context) {
     fun getLocalPosts(): List<PostItem> {
         val json = prefs.getString("cached_posts", null) ?: return emptyList()
         val list = mutableListOf<PostItem>()
+        var hadMigration = false
         try {
             val arr = JSONArray(json)
             for (i in 0 until arr.length()) {
@@ -178,7 +182,14 @@ class PostRepository(private val context: Context) {
                 if (obj.has("mediaUrls")) {
                     val mArr = obj.getJSONArray("mediaUrls")
                     for (m in 0 until mArr.length()) {
-                        mediaUrlsList.add(mArr.getString(m))
+                        val rawM = mArr.getString(m)
+                        val safeM = MediaUriHelper.sanitizeMediaUrl(context, rawM, "posts", "jpg")
+                        if (safeM.isNotBlank()) {
+                            mediaUrlsList.add(safeM)
+                        }
+                        if (rawM.isNotBlank() && safeM != rawM) {
+                            hadMigration = true
+                        }
                     }
                 }
 
@@ -188,6 +199,18 @@ class PostRepository(private val context: Context) {
 
                 val storedViewsCount = obj.optInt("viewsCount", viewedByMap.size)
                 val effectiveViewsCount = if (viewedByMap.isNotEmpty()) viewedByMap.size else storedViewsCount
+
+                val mediaType = obj.optString("mediaType", "text")
+                val rawMediaUrl = obj.optString("mediaUrl", "")
+                val safeMediaUrl = MediaUriHelper.sanitizeMediaUrl(
+                    context,
+                    rawMediaUrl,
+                    if (mediaType == "reel") "reels" else "posts",
+                    if (mediaType == "reel" || mediaType == "video") "mp4" else "jpg"
+                )
+                if (rawMediaUrl.isNotBlank() && safeMediaUrl != rawMediaUrl) {
+                    hadMigration = true
+                }
 
                 list.add(
                     PostItem(
@@ -199,8 +222,8 @@ class PostRepository(private val context: Context) {
                         backgroundStyle = obj.optString("backgroundStyle", "none"),
                         fontSize = obj.optInt("fontSize", 24),
                         textAlign = obj.optString("textAlign", "center"),
-                        mediaType = obj.optString("mediaType", "text"),
-                        mediaUrl = obj.optString("mediaUrl", ""),
+                        mediaType = mediaType,
+                        mediaUrl = safeMediaUrl,
                         mediaUrls = mediaUrlsList,
                         audience = obj.optString("audience", "Public"),
                         groupId = obj.optString("groupId", ""),
@@ -222,7 +245,11 @@ class PostRepository(private val context: Context) {
         } catch (e: Exception) {
             Log.e("PostRepository", "Error parsing cached posts: ${e.message}")
         }
-        return list.sortedByDescending { it.createdAt }
+        val sorted = list.sortedByDescending { it.createdAt }
+        if (hadMigration) {
+            saveLocalPosts(sorted)
+        }
+        return sorted
     }
 
     fun saveLocalPosts(posts: List<PostItem>) {
@@ -870,6 +897,22 @@ class PostRepository(private val context: Context) {
             dbRef?.child(postId)?.removeValue()
         } catch (e: Exception) {
             Log.e("PostRepository", "Firebase deletePost error: ${e.message}")
+        }
+    }
+
+    fun deletePostsByAdvertisementId(adId: String) {
+        if (adId.isBlank()) return
+        val current = _postsFlow.value.toMutableList()
+        val toRemove = current.filter { it.advertisementId == adId }
+        if (toRemove.isEmpty()) return
+        current.removeAll { it.advertisementId == adId }
+        _postsFlow.value = current
+        saveLocalPosts(current)
+
+        for (p in toRemove) {
+            try {
+                dbRef?.child(p.id)?.removeValue()
+            } catch (_: Exception) {}
         }
     }
 

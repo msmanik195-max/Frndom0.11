@@ -62,6 +62,7 @@ import com.example.ui.components.VerificationBadge
 import com.example.ui.verification.VerificationBadgeScreen
 import com.example.data.repository.AppSettingsRepository
 import com.example.data.repository.GroupPageRepository
+import com.example.data.repository.AdvertisementRepository
 import com.example.ui.menu.DashboardView
 import com.example.ui.menu.GroupsView
 import com.example.ui.menu.PagesView
@@ -245,9 +246,50 @@ fun FacebookProfileView(
         null -> { /* Render profile screen */ }
     }
 
-    // Live posts data
+    // Advertisement filtering: ads with status PENDING, REJECTED, or unapproved must NOT show in user's profile (no post, no video, no image)
+    val adRepo = remember { AdvertisementRepository.getInstance(context) }
+    val allAds by adRepo.advertisementsFlow.collectAsState()
+
+    val approvedAdIds = remember(allAds) {
+        allAds.filter { it.status == "RUNNING" || it.status == "APPROVED" }.map { it.id }.toSet()
+    }
+    val unapprovedAds = remember(allAds) {
+        allAds.filter { it.status != "RUNNING" && it.status != "APPROVED" }
+    }
+    val unapprovedAdIds = remember(unapprovedAds) {
+        unapprovedAds.map { it.id }.toSet()
+    }
+    val unapprovedLinkedPostIds = remember(unapprovedAds) {
+        unapprovedAds.mapNotNull { it.linkedPostId.ifBlank { null } }.toSet()
+    }
+    val unapprovedMediaUrls = remember(unapprovedAds) {
+        unapprovedAds.mapNotNull { it.mediaUrl.ifBlank { null } }.toSet()
+    }
+
+    // Live posts data (strictly excluding unapproved/pending/rejected advertisements, videos, and images)
     val allPosts by postRepository.postsFlow.collectAsState()
-    val userPosts = allPosts.filter { it.authorId == user.uid }
+    val userPosts = remember(allPosts, approvedAdIds, unapprovedAdIds, unapprovedLinkedPostIds, unapprovedMediaUrls, user.uid) {
+        allPosts.filter { post ->
+            if (post.authorId != user.uid) return@filter false
+            // If post is explicitly associated with an unapproved/pending/rejected ad
+            if (post.advertisementId.isNotBlank() && (!approvedAdIds.contains(post.advertisementId) || unapprovedAdIds.contains(post.advertisementId))) {
+                return@filter false
+            }
+            // If post is linked to an unapproved ad
+            if (unapprovedLinkedPostIds.contains(post.id)) {
+                return@filter false
+            }
+            // If marked sponsored and ad is not in approved ads
+            if (post.isSponsored && (post.advertisementId.isBlank() || !approvedAdIds.contains(post.advertisementId))) {
+                return@filter false
+            }
+            // If post media matches unapproved ad media
+            if (post.mediaUrl.isNotBlank() && unapprovedMediaUrls.contains(post.mediaUrl) && (post.isSponsored || post.advertisementId.isNotBlank())) {
+                return@filter false
+            }
+            true
+        }
+    }
     val userReels = userPosts.filter { it.mediaType == "reel" || it.mediaType == "video" }
     val userPhotos = userPosts.flatMap { it.getAllMediaUrls() }
 

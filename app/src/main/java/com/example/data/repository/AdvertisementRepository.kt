@@ -5,6 +5,7 @@ import android.util.Log
 import com.example.data.model.AdPlacementSettings
 import com.example.data.model.AdvertisementItem
 import com.example.data.model.PostItem
+import com.example.util.MediaUriHelper
 import com.google.firebase.FirebaseApp
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -65,14 +66,18 @@ class AdvertisementRepository(private val context: Context) {
                     try {
                         val homeEnabled = snapshot.child("homeAdsEnabled").getValue(Boolean::class.java) ?: true
                         val homeInterval = snapshot.child("homePostInterval").getValue(Int::class.java) ?: 5
+                        val homeVideoAdsEnabled = snapshot.child("homeVideoAdsEnabled").getValue(Boolean::class.java) ?: true
                         val reelsEnabled = snapshot.child("reelsAdsEnabled").getValue(Boolean::class.java) ?: true
                         val reelsInterval = snapshot.child("reelsVideoInterval").getValue(Int::class.java) ?: 5
+                        val reelsImageAdsEnabled = snapshot.child("reelsImageAdsEnabled").getValue(Boolean::class.java) ?: true
                         val updated = snapshot.child("updatedAt").getValue(Long::class.java) ?: System.currentTimeMillis()
                         val settings = AdPlacementSettings(
                             homeAdsEnabled = homeEnabled,
                             homePostInterval = homeInterval.coerceAtLeast(1),
+                            homeVideoAdsEnabled = homeVideoAdsEnabled,
                             reelsAdsEnabled = reelsEnabled,
                             reelsVideoInterval = reelsInterval.coerceAtLeast(1),
+                            reelsImageAdsEnabled = reelsImageAdsEnabled,
                             updatedAt = updated
                         )
                         _placementSettingsFlow.value = settings
@@ -138,6 +143,7 @@ class AdvertisementRepository(private val context: Context) {
     private fun loadAdvertisementsLocally(): List<AdvertisementItem> {
         val json = prefs.getString("ads_list_json", null) ?: return emptyList()
         val list = mutableListOf<AdvertisementItem>()
+        var hadMigration = false
         try {
             val arr = JSONArray(json)
             for (i in 0 until arr.length()) {
@@ -147,6 +153,13 @@ class AdvertisementRepository(private val context: Context) {
                 if (id.startsWith("ad_demo_") || userId.startsWith("user_demo_")) {
                     continue
                 }
+                val rawMediaUrl = obj.optString("mediaUrl", "")
+                val mediaType = obj.optString("mediaType", "photo")
+                val safeMediaUrl = MediaUriHelper.sanitizeMediaUrl(context, rawMediaUrl, "ad_media", if (mediaType == "video") "mp4" else "jpg")
+                if (rawMediaUrl.isNotBlank() && safeMediaUrl != rawMediaUrl) {
+                    hadMigration = true
+                }
+
                 list.add(
                     AdvertisementItem(
                         id = id,
@@ -159,8 +172,8 @@ class AdvertisementRepository(private val context: Context) {
                         campaignGoal = obj.optString("campaignGoal", "Website Visits"),
                         headline = obj.optString("headline", ""),
                         description = obj.optString("description", ""),
-                        mediaUrl = obj.optString("mediaUrl", ""),
-                        mediaType = obj.optString("mediaType", "photo"),
+                        mediaUrl = safeMediaUrl,
+                        mediaType = mediaType,
                         postType = obj.optString("postType", "PROFILE"),
                         pageId = obj.optString("pageId", ""),
                         pageName = obj.optString("pageName", ""),
@@ -186,6 +199,9 @@ class AdvertisementRepository(private val context: Context) {
                 )
             }
         } catch (_: Exception) {}
+        if (hadMigration) {
+            saveAdvertisementsLocally(list)
+        }
         return list
     }
 
@@ -256,45 +272,10 @@ class AdvertisementRepository(private val context: Context) {
             return Result.failure(Exception("Failed to process payment from wallet."))
         }
 
-        var linkedPostId = ad.linkedPostId
-        // Also post to user profile or page timeline as requested
-        if (postRepo != null) {
-            try {
-                val newPostId = if (linkedPostId.isNotBlank()) linkedPostId else UUID.randomUUID().toString()
-                val isPage = ad.postType.equals("PAGE", ignoreCase = true) && ad.pageId.isNotBlank()
-                val authorId = if (isPage) ad.pageId else ad.userId
-                val authorName = if (isPage) ad.pageName else ad.userName
-                val authorAvatar = if (isPage) ad.pageAvatarUrl else ad.userAvatar
-                val postContent = buildString {
-                    if (ad.headline.isNotBlank()) append(ad.headline)
-                    if (ad.headline.isNotBlank() && ad.description.isNotBlank()) append("\n\n")
-                    if (ad.description.isNotBlank()) append(ad.description)
-                }
-                val mType = if (ad.mediaType.equals("video", ignoreCase = true)) "video" else if (ad.mediaUrl.isNotBlank()) "photo" else "text"
-
-                val createdPost = PostItem(
-                    id = newPostId,
-                    authorId = authorId,
-                    authorName = authorName,
-                    authorAvatarUrl = authorAvatar,
-                    content = postContent,
-                    mediaType = mType,
-                    mediaUrl = ad.mediaUrl,
-                    audience = "Public",
-                    pageId = if (isPage) ad.pageId else "",
-                    pageName = if (isPage) ad.pageName else "",
-                    createdAt = System.currentTimeMillis()
-                )
-                postRepo.createPost(createdPost)
-                linkedPostId = newPostId
-            } catch (e: Exception) {
-                Log.w("AdvertisementRepo", "Failed to create linked post: ${e.message}")
-            }
-        }
-
+        // Ads must be reviewed and approved by admin before posting to user profile / timeline
         val finalAd = ad.copy(
             id = if (ad.id.isBlank()) UUID.randomUUID().toString() else ad.id,
-            linkedPostId = linkedPostId,
+            linkedPostId = "",
             status = "PENDING",
             createdAt = System.currentTimeMillis()
         )
@@ -318,13 +299,15 @@ class AdvertisementRepository(private val context: Context) {
         newStatus: String,
         adminNote: String = "",
         walletRepo: WalletRepository? = null,
-        refundWallet: Boolean = false
+        refundWallet: Boolean = false,
+        postRepo: PostRepository? = null
     ): Boolean {
         val list = _advertisementsFlow.value.toMutableList()
         val index = list.indexOfFirst { it.id == adId }
         if (index < 0) return false
 
         val currentAd = list[index]
+        var linkedPostId = currentAd.linkedPostId
 
         // If admin chose to refund wallet on rejection
         if (refundWallet && walletRepo != null && currentAd.totalBudget > 0) {
@@ -335,8 +318,65 @@ class AdvertisementRepository(private val context: Context) {
             )
         }
 
+        // If status is changed to REJECTED or PENDING (not approved), remove any linked post from profile and database
+        if (newStatus == "REJECTED" || newStatus == "PENDING") {
+            try {
+                val postRepoToUse = postRepo ?: PostRepository(context.applicationContext)
+                if (currentAd.linkedPostId.isNotBlank()) {
+                    postRepoToUse.deletePost(currentAd.linkedPostId)
+                }
+                postRepoToUse.deletePostsByAdvertisementId(adId)
+            } catch (e: Exception) {
+                Log.w("AdvertisementRepo", "Failed to remove post on reject/pending: ${e.message}")
+            }
+            linkedPostId = ""
+        }
+
+        // Only create linked profile/page post upon Admin approval, and only for non-video ads
+        // Video ads are pure advertisements and do not get posted to organic profile/timeline
+        val isVideo = currentAd.mediaType.equals("video", ignoreCase = true) ||
+                currentAd.mediaUrl.endsWith(".mp4", ignoreCase = true) ||
+                currentAd.mediaUrl.contains(".mp4?", ignoreCase = true)
+
+        if ((newStatus == "RUNNING" || newStatus == "APPROVED") && !isVideo && linkedPostId.isBlank()) {
+            try {
+                val postRepoToUse = postRepo ?: PostRepository(context.applicationContext)
+                val newPostId = UUID.randomUUID().toString()
+                val isPage = currentAd.postType.equals("PAGE", ignoreCase = true) && currentAd.pageId.isNotBlank()
+                val authorId = if (isPage) currentAd.pageId else currentAd.userId
+                val authorName = if (isPage) currentAd.pageName else currentAd.userName
+                val authorAvatar = if (isPage) currentAd.pageAvatarUrl else currentAd.userAvatar
+                val postContent = buildString {
+                    if (currentAd.headline.isNotBlank()) append(currentAd.headline)
+                    if (currentAd.headline.isNotBlank() && currentAd.description.isNotBlank()) append("\n\n")
+                    if (currentAd.description.isNotBlank()) append(currentAd.description)
+                }
+
+                val createdPost = PostItem(
+                    id = newPostId,
+                    authorId = authorId,
+                    authorName = authorName,
+                    authorAvatarUrl = authorAvatar,
+                    content = postContent,
+                    mediaType = if (currentAd.mediaUrl.isNotBlank()) "photo" else "text",
+                    mediaUrl = currentAd.mediaUrl,
+                    audience = "Public",
+                    pageId = if (isPage) currentAd.pageId else "",
+                    pageName = if (isPage) currentAd.pageName else "",
+                    advertisementId = currentAd.id,
+                    isSponsored = true,
+                    createdAt = System.currentTimeMillis()
+                )
+                postRepoToUse.createPost(createdPost)
+                linkedPostId = newPostId
+            } catch (e: Exception) {
+                Log.w("AdvertisementRepo", "Failed to create approved linked post: ${e.message}")
+            }
+        }
+
         val updatedAd = currentAd.copy(
             status = newStatus,
+            linkedPostId = linkedPostId,
             adminNote = adminNote.ifBlank { currentAd.adminNote },
             approvedAt = if (newStatus == "RUNNING" && currentAd.approvedAt == 0L) System.currentTimeMillis() else currentAd.approvedAt
         )
@@ -350,6 +390,7 @@ class AdvertisementRepository(private val context: Context) {
             adsRef?.child(adId)?.updateChildren(
                 mapOf(
                     "status" to newStatus,
+                    "linkedPostId" to linkedPostId,
                     "adminNote" to updatedAd.adminNote,
                     "approvedAt" to updatedAd.approvedAt
                 )
@@ -383,14 +424,28 @@ class AdvertisementRepository(private val context: Context) {
         return true
     }
 
-    fun deleteAdvertisement(adId: String): Boolean {
+    fun deleteAdvertisement(adId: String, postRepo: PostRepository? = null): Boolean {
+        val targetAd = _advertisementsFlow.value.firstOrNull { it.id == adId }
         val updated = _advertisementsFlow.value.filter { it.id != adId }
         _advertisementsFlow.value = updated
         saveAdvertisementsLocally(updated)
 
         try {
             adsRef?.child(adId)?.removeValue()
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            Log.e("AdvertisementRepo", "Error removing ad from Firebase: ${e.message}")
+        }
+
+        // Also permanently remove any linked posts from PostRepository and Firebase
+        try {
+            val pr = postRepo ?: PostRepository(context.applicationContext)
+            if (targetAd != null && targetAd.linkedPostId.isNotBlank()) {
+                pr.deletePost(targetAd.linkedPostId)
+            }
+            pr.deletePostsByAdvertisementId(adId)
+        } catch (e: Exception) {
+            Log.w("AdvertisementRepo", "Error deleting linked posts for ad $adId: ${e.message}")
+        }
 
         return true
     }

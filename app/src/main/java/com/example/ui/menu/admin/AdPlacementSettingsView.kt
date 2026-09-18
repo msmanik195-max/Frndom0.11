@@ -38,9 +38,11 @@ fun AdPlacementSettingsView(
 
     var homeEnabled by remember(currentSettings) { mutableStateOf(currentSettings.homeAdsEnabled) }
     var homeIntervalStr by remember(currentSettings) { mutableStateOf(currentSettings.homePostInterval.toString()) }
+    var homeVideoEnabled by remember(currentSettings) { mutableStateOf(currentSettings.homeVideoAdsEnabled) }
 
     var reelsEnabled by remember(currentSettings) { mutableStateOf(currentSettings.reelsAdsEnabled) }
     var reelsIntervalStr by remember(currentSettings) { mutableStateOf(currentSettings.reelsVideoInterval.toString()) }
+    var reelsImageEnabled by remember(currentSettings) { mutableStateOf(currentSettings.reelsImageAdsEnabled) }
 
     var isSaving by remember { mutableStateOf(false) }
 
@@ -242,6 +244,47 @@ fun AdPlacementSettingsView(
                         fontSize = 11.sp,
                         color = textSecondary
                     )
+
+                    Divider(modifier = Modifier.padding(vertical = 12.dp), color = dividerColor)
+
+                    // Home Page Video Ad Toggle requested by user
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFF4CAF50).copy(alpha = 0.12f),
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.PlayCircle, contentDescription = null, tint = Color(0xFF2E7D32), modifier = Modifier.size(18.dp))
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "হুম পেজে ভিডিও এড (Home Page Video Ads)",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = textPrimary
+                                )
+                                Text(
+                                    text = "হোম ফিডে ভিডিও অ্যাডও স্পনসর্ড হিসেবে দেখাবে এবং স্বয়ংক্রিয়ভাবে অটোপ্লে হবে",
+                                    fontSize = 11.sp,
+                                    color = textSecondary
+                                )
+                            }
+                        }
+
+                        Switch(
+                            checked = homeVideoEnabled,
+                            onCheckedChange = { homeVideoEnabled = it },
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF2E7D32))
+                        )
+                    }
                 }
             }
 
@@ -357,6 +400,47 @@ fun AdPlacementSettingsView(
                         fontSize = 11.sp,
                         color = textSecondary
                     )
+
+                    Divider(modifier = Modifier.padding(vertical = 12.dp), color = dividerColor)
+
+                    // Reels Page Image Ad Toggle requested by user
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFFF9800).copy(alpha = 0.12f),
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Image, contentDescription = null, tint = Color(0xFFE65100), modifier = Modifier.size(18.dp))
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "রিলস পেইজে ইমেজ অ্যাড (Reels Page Image Ads)",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = textPrimary
+                                )
+                                Text(
+                                    text = "রিলস ফিডে ইমেজ অ্যাডও ফুল-স্ক্রিনে স্পনসর্ড হিসেবে দেখাবে",
+                                    fontSize = 11.sp,
+                                    color = textSecondary
+                                )
+                            }
+                        }
+
+                        Switch(
+                            checked = reelsImageEnabled,
+                            onCheckedChange = { reelsImageEnabled = it },
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFFE65100))
+                        )
+                    }
                 }
             }
 
@@ -371,8 +455,10 @@ fun AdPlacementSettingsView(
                     val updated = AdPlacementSettings(
                         homeAdsEnabled = homeEnabled,
                         homePostInterval = homeInt,
+                        homeVideoAdsEnabled = homeVideoEnabled,
                         reelsAdsEnabled = reelsEnabled,
                         reelsVideoInterval = reelsInt,
+                        reelsImageAdsEnabled = reelsImageEnabled,
                         updatedAt = System.currentTimeMillis()
                     )
                     isSaving = true

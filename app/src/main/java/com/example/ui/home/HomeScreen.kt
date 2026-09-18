@@ -138,6 +138,7 @@ fun HomeScreen(
     onUserClick: (UserProfile) -> Unit = {},
     onCommentClick: (PostItem) -> Unit = {},
     onShareClick: (PostItem) -> Unit = {},
+    onMessageClick: ((UserProfile) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val posts by postRepository.postsFlow.collectAsState()
@@ -167,8 +168,24 @@ fun HomeScreen(
         }
     }
 
-    val feedPosts = remember(posts, effectiveUser, isFriendsOnly, isVideosSectionEnabled) {
-        val nonReels = posts.filter { it.mediaType != "reel" }
+    val appSettingsRepository = remember { AppSettingsRepository.getInstance(context) }
+    val autoPlayVideos by appSettingsRepository.autoPlayVideos.collectAsState()
+    val adRepo = remember { AdvertisementRepository.getInstance(context) }
+    val allAds by adRepo.advertisementsFlow.collectAsState()
+    val adPlacementSettings by adRepo.adPlacementSettingsFlow.collectAsState()
+
+    val feedPosts = remember(posts, effectiveUser, isFriendsOnly, isVideosSectionEnabled, allAds) {
+        val approvedAdIds = allAds.filter { it.status == "RUNNING" || it.status == "APPROVED" }.map { it.id }.toSet()
+        val unapprovedLinkedPostIds = allAds.filter { it.status != "RUNNING" && it.status != "APPROVED" }.mapNotNull { it.linkedPostId.ifBlank { null } }.toSet()
+
+        val nonReels = posts.filter { post ->
+            if (post.mediaType == "reel") return@filter false
+            // Filter out unapproved / pending / rejected ad posts
+            if (post.advertisementId.isNotBlank() && !approvedAdIds.contains(post.advertisementId)) return@filter false
+            if (unapprovedLinkedPostIds.contains(post.id)) return@filter false
+            if (post.isSponsored && (post.advertisementId.isBlank() || !approvedAdIds.contains(post.advertisementId))) return@filter false
+            true
+        }
         val filtered = if (!isVideosSectionEnabled) {
             nonReels.filter { post ->
                 val isVideo = post.mediaType.equals("video", ignoreCase = true) ||
@@ -191,12 +208,20 @@ fun HomeScreen(
         }
     }
 
-    val appSettingsRepository = remember { AppSettingsRepository.getInstance(context) }
-    val autoPlayVideos by appSettingsRepository.autoPlayVideos.collectAsState()
-    val adRepo = remember { AdvertisementRepository.getInstance(context) }
-    val allAds by adRepo.advertisementsFlow.collectAsState()
-    val adPlacementSettings by adRepo.adPlacementSettingsFlow.collectAsState()
-    val runningAds = remember(allAds) { allAds.filter { it.status == "RUNNING" || it.status == "APPROVED" } }
+    val runningAds = remember(allAds, adPlacementSettings.homeVideoAdsEnabled) {
+        allAds.filter { ad ->
+            val isRunning = ad.status == "RUNNING" || ad.status == "APPROVED"
+            if (!isRunning) return@filter false
+            val isVideo = ad.mediaType.equals("video", ignoreCase = true) ||
+                    ad.mediaUrl.endsWith(".mp4", ignoreCase = true) ||
+                    ad.mediaUrl.contains(".mp4?", ignoreCase = true)
+            if (isVideo) {
+                adPlacementSettings.homeVideoAdsEnabled
+            } else {
+                true
+            }
+        }
+    }
 
     val effectiveMediaUploadService = remember(mediaUploadService, storageRepository) {
         mediaUploadService ?: MediaUploadService(context, storageRepository ?: StorageRepository(context))
@@ -689,7 +714,8 @@ fun HomeScreen(
                                 ad = adToShow,
                                 onAdClick = { clickedAd ->
                                     adRepo.recordClick(clickedAd.id)
-                                }
+                                },
+                                onMessageClick = onMessageClick
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                         }
@@ -815,6 +841,17 @@ fun PostCardItem(
     val userReaction = post.getUserReaction(currentUserId)
     val isVerifiedAuthor = post.isAuthorVerified || (currentUserProfile != null && post.authorId == currentUserProfile.uid && currentUserProfile.isVerificationActive()) || UserRepository.isUserVerifiedStatic(post.authorId)
     val liveAvatar = UserRepository.getUserAvatarStatic(post.authorId)
+
+    val adRepo = remember { AdvertisementRepository.getInstance(context) }
+    val allAds by adRepo.advertisementsFlow.collectAsState()
+    val isSponsoredActive = remember(allAds, post.id, post.advertisementId, post.isSponsored) {
+        val linkedAd = allAds.firstOrNull { it.linkedPostId == post.id || (post.advertisementId.isNotBlank() && it.id == post.advertisementId) }
+        if (linkedAd != null) {
+            linkedAd.status == "RUNNING" || linkedAd.status == "APPROVED"
+        } else {
+            post.isSponsored
+        }
+    }
     val effectiveAuthorAvatar = if (currentUserProfile != null && post.authorId == currentUserProfile.uid && currentUserProfile.profilePictureUrl.isNotBlank()) {
         currentUserProfile.profilePictureUrl
     } else if (liveAvatar.isNotBlank()) {
@@ -896,6 +933,21 @@ fun PostCardItem(
                                 if (isVerifiedAuthor) {
                                     VerificationBadge(size = 14.dp, show = true)
                                 }
+                                if (isSponsoredActive) {
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = Color(0xFF1877F2).copy(alpha = 0.12f)
+                                    ) {
+                                        Text(
+                                            text = "Sponsored",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF1877F2),
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
                                 Text(
                                     text = " • ${formatPostTimestamp(post.createdAt)} • ",
                                     fontSize = 12.sp,
@@ -924,6 +976,26 @@ fun PostCardItem(
                                 }
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (isSponsoredActive) {
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = Color(0xFF1877F2).copy(alpha = 0.12f),
+                                        modifier = Modifier.padding(end = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = "Sponsored",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF1877F2),
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                    Text(
+                                        text = "• ",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                                 Text(
                                     text = formatPostTimestamp(post.createdAt),
                                     fontSize = 12.sp,
@@ -1488,11 +1560,31 @@ fun ShimmerPostCard() {
 fun SponsoredAdFeedCard(
     ad: AdvertisementItem,
     onAdClick: (AdvertisementItem) -> Unit,
+    onMessageClick: ((UserProfile) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     LaunchedEffect(ad.id) {
         AdvertisementRepository.getInstance(context).recordImpression(ad.id)
+    }
+
+    val handleActionClick = {
+        onAdClick(ad)
+        if (ad.callToAction.equals("Send Message", ignoreCase = true) || ad.destinationUrl.startsWith("chat:")) {
+            val peer = UserProfile(
+                uid = ad.userId,
+                firstName = ad.userName.substringBefore(" "),
+                lastName = ad.userName.substringAfter(" ", ""),
+                fullName = ad.userName,
+                profilePictureUrl = ad.userAvatar
+            )
+            onMessageClick?.invoke(peer)
+        } else if (ad.destinationUrl.isNotBlank()) {
+            try {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ad.destinationUrl))
+                context.startActivity(intent)
+            } catch (_: Exception) {}
+        }
     }
 
     Card(
@@ -1583,33 +1675,38 @@ fun SponsoredAdFeedCard(
             // Ad Media Banner (Photo or Video)
             if (ad.mediaUrl.isNotBlank()) {
                 val isVideo = ad.mediaType == "video" || ad.mediaUrl.endsWith(".mp4", ignoreCase = true) || ad.mediaUrl.contains(".mp4?", ignoreCase = true)
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(230.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    if (isVideo) {
+                if (isVideo) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 220.dp, max = 340.dp)
+                            .background(Color.Black),
+                        contentAlignment = Alignment.Center
+                    ) {
                         FrndomVideoPlayer(
                             videoUrl = ad.mediaUrl,
                             modifier = Modifier.fillMaxSize(),
-                            autoPlay = false,
+                            autoPlay = true,
                             isLooping = true
                         )
-                    } else {
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
                         AsyncImage(
                             model = ad.mediaUrl,
                             contentDescription = "Sponsored Ad",
                             modifier = Modifier
-                                .fillMaxSize()
+                                .fillMaxWidth()
+                                .wrapContentHeight()
+                                .heightIn(min = 180.dp, max = 560.dp)
                                 .clickable {
-                                    onAdClick(ad)
-                                    try {
-                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ad.destinationUrl))
-                                        context.startActivity(intent)
-                                    } catch (_: Exception) {}
+                                    handleActionClick()
                                 },
-                            contentScale = ContentScale.Crop
+                            contentScale = ContentScale.FillWidth
                         )
                     }
                 }
@@ -1621,22 +1718,22 @@ fun SponsoredAdFeedCard(
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                     .clickable {
-                        onAdClick(ad)
-                        try {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ad.destinationUrl))
-                            context.startActivity(intent)
-                        } catch (_: Exception) {}
+                        handleActionClick()
                     }
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                    val domain = try {
-                        val host = Uri.parse(ad.destinationUrl).host.orEmpty()
-                        if (host.isNotBlank()) host.uppercase() else "PROMOTION"
-                    } catch (_: Exception) {
-                        "PROMOTION"
+                    val domain = if (ad.callToAction.equals("Send Message", ignoreCase = true) || ad.destinationUrl.startsWith("chat:")) {
+                        "MESSENGER CHAT"
+                    } else {
+                        try {
+                            val host = Uri.parse(ad.destinationUrl).host.orEmpty()
+                            if (host.isNotBlank()) host.uppercase() else "PROMOTION"
+                        } catch (_: Exception) {
+                            "PROMOTION"
+                        }
                     }
                     Text(
                         text = domain,
@@ -1656,11 +1753,7 @@ fun SponsoredAdFeedCard(
 
                 Button(
                     onClick = {
-                        onAdClick(ad)
-                        try {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ad.destinationUrl))
-                            context.startActivity(intent)
-                        } catch (_: Exception) {}
+                        handleActionClick()
                     },
                     shape = RoundedCornerShape(6.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),

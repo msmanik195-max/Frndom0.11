@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.model.AdvertisementItem
 import com.example.data.repository.AdvertisementRepository
+import com.example.data.repository.PostRepository
 import com.example.data.repository.UserRepository
 import com.example.data.repository.WalletRepository
 import com.example.ui.theme.LocalIsDarkMode
@@ -51,6 +52,7 @@ fun AdminAdDetailView(
     val adRepo = remember { AdvertisementRepository.getInstance(context) }
     val walletRepo = remember { WalletRepository.getInstance(context) }
     val userRepo = remember { UserRepository(context) }
+    val postRepo = remember { PostRepository(context.applicationContext) }
 
     val allAds by adRepo.advertisementsFlow.collectAsState()
     val ad = remember(allAds, adId) { allAds.firstOrNull { it.id == adId } }
@@ -85,6 +87,7 @@ fun AdminAdDetailView(
     var adminNoteInput by remember(ad.adminNote) { mutableStateOf(ad.adminNote) }
     var refundToWalletOnReject by remember { mutableStateOf(true) }
     var showStatusUpdateDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
     val dateFormat = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
 
@@ -128,6 +131,16 @@ fun AdminAdDetailView(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = { showDeleteConfirmDialog = true },
+                        modifier = Modifier.testTag("admin_ad_detail_delete_btn")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Delete Ad",
+                            tint = Color(0xFFD32F2F)
+                        )
+                    }
                     Button(
                         onClick = { showStatusUpdateDialog = true },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1877F2)),
@@ -652,6 +665,48 @@ fun AdminAdDetailView(
             },
             dismissButton = {
                 TextButton(onClick = { showStatusUpdateDialog = false }) {
+                    Text("Cancel", color = textSecondary)
+                }
+            }
+        )
+    }
+
+    // Delete Confirmation Dialog for Admin
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            containerColor = bgCard,
+            titleContentColor = Color(0xFFD32F2F),
+            textContentColor = textSecondary,
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.DeleteForever, contentDescription = null, tint = Color(0xFFD32F2F), modifier = Modifier.size(24.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Delete Advertisement", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = textPrimary)
+                }
+            },
+            text = {
+                Text(
+                    text = "Are you sure you want to permanently delete \"${ad.campaignName}\"?\n\nThis will completely remove this advertisement from the database, campaign lists, and feed.",
+                    fontSize = 14.sp,
+                    color = textPrimary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirmDialog = false
+                        adRepo.deleteAdvertisement(ad.id, postRepo)
+                        Toast.makeText(context, "Advertisement permanently deleted from database", Toast.LENGTH_SHORT).show()
+                        onBack()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F))
+                ) {
+                    Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = false }) {
                     Text("Cancel", color = textSecondary)
                 }
             }

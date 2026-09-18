@@ -34,6 +34,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.example.data.repository.AdminRequestRepository
 import com.example.data.repository.ContentLimitManager
 import com.example.data.repository.ContentValidationResult
+import com.example.util.MediaUriHelper
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -87,11 +88,14 @@ fun CreateStoryDialog(
     var selectedMediaType by remember { mutableStateOf("text") } // "text", "image", "video"
     var isUploading by remember { mutableStateOf(false) }
 
+    val context = LocalContext.current
+
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         if (uri != null) {
-            selectedMediaUri = uri
+            val localPath = MediaUriHelper.copyUriToAppStorage(context, uri, "stories", "jpg")
+            selectedMediaUri = if (localPath.isNotBlank()) Uri.parse(localPath) else uri
             selectedMediaType = "image"
         }
     }
@@ -100,7 +104,8 @@ fun CreateStoryDialog(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         if (uri != null) {
-            selectedMediaUri = uri
+            val localPath = MediaUriHelper.copyUriToAppStorage(context, uri, "stories", "mp4")
+            selectedMediaUri = if (localPath.isNotBlank()) Uri.parse(localPath) else uri
             selectedMediaType = "video"
         }
     }
@@ -111,7 +116,6 @@ fun CreateStoryDialog(
         else -> "User"
     }
 
-    val context = LocalContext.current
     val contentLimitManager = remember { ContentLimitManager.getInstance(context) }
     val adminRepo = remember { AdminRequestRepository.getInstance(context) }
     val appSettings by adminRepo.appSettingsFlow.collectAsState()

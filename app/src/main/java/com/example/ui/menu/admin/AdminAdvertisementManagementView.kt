@@ -2,6 +2,7 @@ package com.example.ui.menu.admin
 
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.model.AdvertisementItem
 import com.example.data.repository.AdvertisementRepository
+import com.example.data.repository.PostRepository
 import com.example.data.repository.WalletRepository
 import com.example.ui.theme.LocalIsDarkMode
 import java.text.SimpleDateFormat
@@ -59,6 +61,7 @@ fun AdminAdvertisementManagementView(
     val context = LocalContext.current
     val adRepo = remember { AdvertisementRepository.getInstance(context) }
     val walletRepo = remember { WalletRepository.getInstance(context) }
+    val postRepo = remember { PostRepository(context.applicationContext) }
 
     val allAds by adRepo.advertisementsFlow.collectAsState()
 
@@ -68,6 +71,7 @@ fun AdminAdvertisementManagementView(
 
     // Quick status action dialog
     var adToQuickAction by remember { mutableStateOf<AdvertisementItem?>(null) }
+    var adToDelete by remember { mutableStateOf<AdvertisementItem?>(null) }
 
     // If viewing single ad detail page
     viewingAdId?.let { id ->
@@ -317,12 +321,55 @@ fun AdminAdvertisementManagementView(
                         AdminAdCard(
                             ad = ad,
                             onViewClick = { viewingAdId = ad.id },
-                            onQuickAction = { adToQuickAction = ad }
+                            onQuickAction = { adToQuickAction = ad },
+                            onDeleteClick = { adToDelete = ad }
                         )
                     }
                 }
             }
         }
+    }
+
+    // Direct Delete Confirmation Dialog for Admin
+    adToDelete?.let { ad ->
+        AlertDialog(
+            onDismissRequest = { adToDelete = null },
+            containerColor = bgCard,
+            titleContentColor = Color(0xFFD32F2F),
+            textContentColor = textSecondary,
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.DeleteForever, contentDescription = null, tint = Color(0xFFD32F2F), modifier = Modifier.size(24.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Delete Advertisement", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = textPrimary)
+                }
+            },
+            text = {
+                Text(
+                    text = "Are you sure you want to permanently delete \"${ad.campaignName}\"?\n\nThis will completely remove it from the database, campaign list, and user profile.",
+                    fontSize = 13.sp,
+                    color = textPrimary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val toDeleteId = ad.id
+                        adToDelete = null
+                        adRepo.deleteAdvertisement(toDeleteId, postRepo)
+                        Toast.makeText(context, "Advertisement permanently deleted from database", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F))
+                ) {
+                    Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { adToDelete = null }) {
+                    Text("Cancel", color = textSecondary)
+                }
+            }
+        )
     }
 
     // Quick Action Dialog for Admin
@@ -435,7 +482,8 @@ fun AdminAdvertisementManagementView(
 private fun AdminAdCard(
     ad: AdvertisementItem,
     onViewClick: () -> Unit,
-    onQuickAction: () -> Unit
+    onQuickAction: () -> Unit,
+    onDeleteClick: () -> Unit
 ) {
     val isDarkMode = LocalIsDarkMode.current
     val bgCard = if (isDarkMode) Color(0xFF242526) else Color.White
@@ -598,28 +646,44 @@ private fun AdminAdCard(
                     )
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        onClick = onDeleteClick,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFD32F2F)),
+                        border = BorderStroke(1.dp, Color(0xFFD32F2F).copy(alpha = 0.5f)),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                        modifier = Modifier.height(34.dp).testTag("delete_ad_${ad.id}")
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete", modifier = Modifier.size(14.dp), tint = Color(0xFFD32F2F))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("Delete", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFD32F2F))
+                    }
+
                     OutlinedButton(
                         onClick = onQuickAction,
                         shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                         modifier = Modifier.height(34.dp).testTag("quick_action_${ad.id}")
                     ) {
                         Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(14.dp), tint = textPrimary)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Action", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("Action", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = textPrimary)
                     }
 
                     Button(
                         onClick = onViewClick,
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1877F2)),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                         modifier = Modifier.height(34.dp).testTag("view_ad_${ad.id}")
                     ) {
                         Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("View", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("View", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

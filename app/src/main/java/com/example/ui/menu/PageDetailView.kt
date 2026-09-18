@@ -92,6 +92,7 @@ import com.example.data.model.PostItem
 import com.example.data.model.UserProfile
 import com.example.data.repository.GroupPageRepository
 import com.example.data.repository.PostRepository
+import com.example.data.repository.AdvertisementRepository
 import com.example.data.service.MediaUploadService
 import com.example.ui.components.CommentsBottomSheet
 import com.example.ui.home.PostCardItem
@@ -116,9 +117,23 @@ fun PageDetailView(
     val allPosts by postRepository.postsFlow.collectAsState()
     val allPages by groupPageRepository.pagesFlow.collectAsState()
 
+    val adRepo = remember { AdvertisementRepository.getInstance(context) }
+    val allAds by adRepo.advertisementsFlow.collectAsState()
+
     // Find the latest state of the page
     val currentPage = allPages.find { it.id == page.id } ?: page
-    val pagePosts = allPosts.filter { it.pageId == currentPage.id || it.authorName == currentPage.name }
+    val pagePosts = remember(allPosts, allAds, currentPage.id, currentPage.name) {
+        val approvedAdIds = allAds.filter { it.status == "RUNNING" || it.status == "APPROVED" }.map { it.id }.toSet()
+        val unapprovedLinkedPostIds = allAds.filter { it.status != "RUNNING" && it.status != "APPROVED" }.mapNotNull { it.linkedPostId.ifBlank { null } }.toSet()
+
+        allPosts.filter { post ->
+            if (post.pageId != currentPage.id && post.authorName != currentPage.name) return@filter false
+            if (post.advertisementId.isNotBlank() && !approvedAdIds.contains(post.advertisementId)) return@filter false
+            if (unapprovedLinkedPostIds.contains(post.id)) return@filter false
+            if (post.isSponsored && (post.advertisementId.isBlank() || !approvedAdIds.contains(post.advertisementId))) return@filter false
+            true
+        }
+    }
 
     val currentUid = userProfile?.uid ?: ""
     val isCreator = currentPage.creatorId == currentUid || currentPage.creatorId.isBlank()

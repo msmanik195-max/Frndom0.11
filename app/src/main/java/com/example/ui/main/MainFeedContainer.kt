@@ -208,6 +208,9 @@ fun MainFeedContainer(
                                 }
                                 val shareIntent = android.content.Intent.createChooser(sendIntent, null)
                                 context.startActivity(shareIntent)
+                            },
+                            onMessageClick = { peer ->
+                                activeChatPeer = peer
                             }
                         )
                     }
@@ -230,6 +233,9 @@ fun MainFeedContainer(
                                 }
                                 val shareIntent = android.content.Intent.createChooser(sendIntent, null)
                                 context.startActivity(shareIntent)
+                            },
+                            onMessageClick = { peer ->
+                                activeChatPeer = peer
                             }
                         )
                     }
